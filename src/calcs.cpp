@@ -109,7 +109,7 @@ namespace calcs {
         float *sums = _sums;
         float *tmp;
 
-        while(n){
+        while(n>1){
             #pragma omp parallel for
             for(int i = 0; i < n_chunks; i++){
                 sums[i] = 0;
@@ -123,7 +123,7 @@ namespace calcs {
             sums = tmp;
         }
 
-        sum = sums[0];
+        sum = data[0];
         delete[] _sums;
         return sum;
 
