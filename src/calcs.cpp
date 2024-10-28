@@ -2,6 +2,7 @@
 #include "comp_conf.hpp"
 #include <algorithm>
 #include <omp.h>
+#include <immintrin.h>
 #include <math.h>
 
 namespace calcs {
@@ -128,5 +129,74 @@ namespace calcs {
         return sum;
 
     }
+
+    void Calc::sort_chunk(float* const data, Chunk& chunk){
+        std::sort(data + chunk.lo, data + chunk.hi);
+    }
+
+
+
+    /* ----------------- SEQUENTIAL INSTRUCTION IMPLEMENTATION -------------------- */
+
+    void SeqCalc::sum_chunk(const float* const data, Chunk& chunk, float* const out){
+        for(size_t i = chunk.lo; i < chunk.hi; i++){
+            *out += data[i];
+        }
+    }
+
+    void SeqCalc::varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out){
+        for(size_t i = chunk.lo; i < chunk.hi; i++){
+            *out += (data[i] - mean) * (data[i] - mean);
+            data[i] -= med;
+        }
+    }
+
+    void SeqCalc::abs_chunk(float* const data, Chunk& chunk){
+        for(size_t i = chunk.lo; i < chunk.hi; i++){
+            data[i] = fabs(data[i]);
+        }
+    }
+
+    /* ----------------- VECTOR INSTRUCTION IMPLEMENTATION -------------------- */
+    // by hand, not using OpenMP SIMD directives
+
+    void VecCalc::sum_chunk(const float* const data, Chunk& chunk, float* const out){
+        __m256 sum = _mm256_setzero_ps();
+        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
+            __m256 vec = _mm256_loadu_ps(data + i);
+            sum = _mm256_add_ps(sum, vec);
+        }
+        sum = _mm256_hadd_ps(sum, sum);
+        sum = _mm256_hadd_ps(sum, sum);
+        *out = ((float*)&sum)[0] + ((float*)&sum)[4];
+    }
+
+    void VecCalc::varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out){
+        __m256 _med = _mm256_set1_ps(med);
+        __m256 _mean = _mm256_set1_ps(mean);
+        __m256 sum = _mm256_setzero_ps();
+        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
+            __m256 vec = _mm256_loadu_ps(data + i);
+            __m256 diff = _mm256_sub_ps(vec, _mean);
+            __m256 sq = _mm256_mul_ps(diff, diff);
+            sum = _mm256_add_ps(sum, sq);
+
+            diff = _mm256_sub_ps(vec, _med);
+            _mm256_storeu_ps(data + i, diff);
+        }
+        sum = _mm256_hadd_ps(sum, sum);
+        sum = _mm256_hadd_ps(sum, sum);
+        *out = ((float*)&sum)[0] + ((float*)&sum)[4];
+    }
+
+    void VecCalc::abs_chunk(float* const data, Chunk& chunk){
+        __m256 mask = _mm256_set1_ps(-0.0f);
+        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
+            __m256 vec = _mm256_loadu_ps(data + i);
+            vec = _mm256_andnot_ps(mask, vec);
+            _mm256_storeu_ps(data + i, vec);
+        }
+    }
+
 
 }
