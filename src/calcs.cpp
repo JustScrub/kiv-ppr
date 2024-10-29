@@ -49,8 +49,7 @@ namespace calcs {
         std::inplace_merge(data, data + n/2, data + n);
 
         // calculate coefficient of variation and median absolute deviation
-        *cv = reduce_sum(sums, n_chunks) / n;
-        *cv = sqrt(*cv)/mean;
+        *cv = sqrt(reduce_sum(sums, n_chunks) / n)/mean;
         *mad = n % 2 == 0 ? (data[n/2] + data[n/2 - 1]) / 2 : data[n/2];
 
         delete[] chunks;
@@ -139,16 +138,20 @@ namespace calcs {
     /* ----------------- SEQUENTIAL INSTRUCTION IMPLEMENTATION -------------------- */
 
     void SeqCalc::sum_chunk(const float* const data, Chunk& chunk, float* const out){
+        float sum = 0;
         for(size_t i = chunk.lo; i < chunk.hi; i++){
-            *out += data[i];
+            sum += data[i];
         }
+        *out = sum;
     }
 
     void SeqCalc::varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out){
+        float sum = 0;
         for(size_t i = chunk.lo; i < chunk.hi; i++){
-            *out += (data[i] - mean) * (data[i] - mean);
+            sum += (data[i] - mean) * (data[i] - mean);
             data[i] -= med;
         }
+        *out = sum;
     }
 
     void SeqCalc::abs_chunk(float* const data, Chunk& chunk){
@@ -172,6 +175,7 @@ namespace calcs {
     }
 
     void VecCalc::varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out){
+        // all __m256 variables altogether occupy 6*32 = 192 bytes (256 bits = 32 bytes)
         __m256 _med = _mm256_set1_ps(med);
         __m256 _mean = _mm256_set1_ps(mean);
         __m256 sum = _mm256_setzero_ps();

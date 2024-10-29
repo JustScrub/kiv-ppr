@@ -3,7 +3,7 @@
 
 /* ------------ CONFIG ---------------- */
 /*             EDIT THIS PART           */
-constexpr size_t CHUNK_SIZE = 32768; // set to cache size
+constexpr size_t CHUNK_SIZE = 32768-192; // set to a little less than cache size in bytes (about 192 bytes less)
 
 
 
