@@ -9,6 +9,13 @@
 struct patient_data {
     std::vector<float> X, Y, Z;
     size_t id;
+
+    std::vector<float> &operator[](size_t i) {
+        if(i == 0) return X;
+        if(i == 1) return Y;
+        if(i == 2) return Z;
+        throw std::out_of_range("Index out of range");
+    }
 };
 
 class data_loader {

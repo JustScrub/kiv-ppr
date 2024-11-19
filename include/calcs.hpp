@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <vector>
+#include "json.hpp"
+using json = nlohmann::json;
 
 
 namespace calcs {
@@ -26,6 +28,8 @@ namespace calcs {
         float reduce_sum(float* data, size_t n);
 
         void calc(float* const data, size_t n, float* cv, float* mad);
+
+        double calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad, json &j);
 
     };
 

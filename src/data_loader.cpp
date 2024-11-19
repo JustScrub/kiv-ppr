@@ -1,11 +1,14 @@
 #include "data_loader.hpp"
 #include <sstream>
+#include <iostream>
 
 data_loader::data_loader(const std::string& filename) : filename(filename) {
+    //std::cout << "Opening file: " << filename << std::endl;
     file.open(filename);
 }
 
 data_loader::~data_loader() {
+    //std::cout << "Closing file: " << filename << std::endl;
     file.close();
 }
 
@@ -20,24 +23,29 @@ int data_loader::load_data(patient_data& data, size_t chunk_size) {
         return -1;
     }
     std::string line;
+    const char *cline;
     if(!std::getline(file, line)) {
         //skip header or fail if eof
         return -2;
     }
-    std::vector<float> values;
     while(std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string token;
-        while(std::getline(ss, token, ',')) {
-            values.push_back(stof(token));
+        cline = line.c_str();
+        while(*cline != ',') cline++;
+        cline++;
+        data.X.push_back(atof(cline));
+
+        while(*cline != ',') cline++;
+        cline++;
+        data.Y.push_back(atof(cline));
+
+        while(*cline != ',') cline++;
+        cline++;
+        data.Z.push_back(atof(cline));
+
+        if(chunk_size > 0 && data.X.size() >= chunk_size) {
+            break;
         }
-        data.X.push_back(values[1]);
-        data.Y.push_back(values[2]);
-        data.Z.push_back(values[3]);
-        values.clear();
-        if (!(--chunk_size)) {
-            return 0;
-        }
+
     }
     return 0;
 }

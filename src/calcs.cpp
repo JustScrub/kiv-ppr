@@ -1,5 +1,6 @@
 #include "calcs.hpp"
 #include "comp_conf.hpp"
+#include <chrono>
 #include <algorithm>
 #include <omp.h>
 #include <immintrin.h>
@@ -17,14 +18,14 @@ namespace calcs {
 
         // divide the data into chunks
         #pragma omp parallel for
-        for(int i = 0; i < n_chunks; i++){
+        for(size_t i = 0; i < n_chunks; i++){
             chunks[i].lo = i*CHUNK_CAPACITY;
             chunks[i].hi = std::min(n, (i + 1)*CHUNK_CAPACITY);
         }
 
         // sum and sort each chunk
         #pragma omp parallel for
-        for(int i = 0; i < n_chunks; i++){
+        for(size_t i = 0; i < n_chunks; i++){
             sums[i] = 0;
             sum_chunk(data, chunks[i], &sums[i]);
             sort_chunk(data, chunks[i]);
@@ -38,7 +39,7 @@ namespace calcs {
 
         // calculate partial variances, offset chunks by median (varmed) and map to absolute values
         #pragma omp parallel for
-        for(int i = 0; i < n_chunks; i++){
+        for(size_t i = 0; i < n_chunks; i++){
             sums[i] = 0;
             varmed_chunk(data, chunks[i], med, mean, &sums[i]);
             abs_chunk(data, chunks[i]);
@@ -111,7 +112,7 @@ namespace calcs {
 
         while(n>1){
             #pragma omp parallel for
-            for(int i = 0; i < n_chunks; i++){
+            for(size_t i = 0; i < n_chunks; i++){
                 sums[i] = 0;
                 Chunk chunk = {i*CHUNK_CAPACITY, std::min(n, (i + 1)*CHUNK_CAPACITY)};
                 sum_chunk(data, chunk, &sums[i]);
@@ -131,6 +132,27 @@ namespace calcs {
 
     void Calc::sort_chunk(float* const data, Chunk& chunk){
         std::sort(data + chunk.lo, data + chunk.hi);
+    }
+
+    double Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad, json &j){
+        double time = 0;
+        float * _data = new float[n];
+        for(unsigned i = 0; i < reps; i++){
+            std::copy(data, data + n, _data);
+            auto start = std::chrono::high_resolution_clock::now();
+            calc(_data, n, cv, mad);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> diff = end-start;
+            time += diff.count();
+
+            j["iters"].push_back({
+                {"time", diff.count()},
+                {"cv", *cv},
+                {"mad", *mad}
+            });
+        }
+        delete[] _data;
+        return time / reps;
     }
 
 
@@ -165,13 +187,21 @@ namespace calcs {
 
     void VecCalc::sum_chunk(const float* const data, Chunk& chunk, float* const out){
         __m256 sum = _mm256_setzero_ps();
-        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
-            __m256 vec = _mm256_loadu_ps(data + i);
+        float ret = 0;
+        size_t i;
+        for(i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP){
+            __m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
             sum = _mm256_add_ps(sum, vec);
         }
         sum = _mm256_hadd_ps(sum, sum);
         sum = _mm256_hadd_ps(sum, sum);
-        *out = ((float*)&sum)[0] + ((float*)&sum)[4];
+        ret = ((float*)&sum)[0] + ((float*)&sum)[4];
+
+        // sum the rest -> max VEC_REG_CAP - 1 elements
+        for(i = i-VEC_REG_CAP; i < chunk.hi; i++){
+            ret += data[i];
+        }
+        *out = ret;
     }
 
     void VecCalc::varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out){
@@ -179,18 +209,27 @@ namespace calcs {
         __m256 _med = _mm256_set1_ps(med);
         __m256 _mean = _mm256_set1_ps(mean);
         __m256 sum = _mm256_setzero_ps();
-        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
-            __m256 vec = _mm256_loadu_ps(data + i);
+        size_t i;
+        float ret = 0;
+        for(i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP){
+            __m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
             __m256 diff = _mm256_sub_ps(vec, _mean);
             __m256 sq = _mm256_mul_ps(diff, diff);
             sum = _mm256_add_ps(sum, sq);
 
             diff = _mm256_sub_ps(vec, _med);
-            _mm256_storeu_ps(data + i, diff);
+            _mm256_storeu_ps(data + i - VEC_REG_CAP, diff);
         }
         sum = _mm256_hadd_ps(sum, sum);
         sum = _mm256_hadd_ps(sum, sum);
-        *out = ((float*)&sum)[0] + ((float*)&sum)[4];
+        ret = ((float*)&sum)[0] + ((float*)&sum)[4];
+
+        // do the rest -> max VEC_REG_CAP - 1 elements
+        for(i = i-VEC_REG_CAP; i < chunk.hi; i++){
+            ret += (data[i] - mean) * (data[i] - mean);
+            data[i] -= med;
+        }
+        *out = ret;
     }
 
     void VecCalc::abs_chunk(float* const data, Chunk& chunk){
