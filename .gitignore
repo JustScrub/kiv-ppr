@@ -1,7 +1,9 @@
 data
+out
 
-# Visual Studio Code
+# Visual Studio Code, Visual Studio
 .vscode
+.vs
 
 # Prerequisites
 *.d
