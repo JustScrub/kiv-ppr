@@ -234,11 +234,17 @@ namespace calcs {
 
     void VecCalc::abs_chunk(float* const data, Chunk& chunk){
         __m256 mask = _mm256_set1_ps(-0.0f);
-        for(size_t i = chunk.lo; i < chunk.hi; i += VEC_REG_CAP){
-            __m256 vec = _mm256_loadu_ps(data + i);
-            vec = _mm256_andnot_ps(mask, vec);
-            _mm256_storeu_ps(data + i, vec);
-        }
+      	size_t i;
+		for (i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP) {
+			__m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
+			vec = _mm256_andnot_ps(mask, vec);
+			_mm256_storeu_ps(data + i - VEC_REG_CAP, vec);
+		}
+		// do the rest -> max VEC_REG_CAP - 1 elements
+		for (i = i - VEC_REG_CAP; i < chunk.hi; i++) {
+			data[i] = fabs(data[i]);
+		}
+
     }
 
 

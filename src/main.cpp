@@ -4,6 +4,7 @@
 #include "json.hpp"
 #include <chrono>
 #include <iostream>
+#include <errno.h>
 #include <omp.h>
 
 using json = nlohmann::json;
@@ -34,6 +35,7 @@ int main(int argc, char *argv[]) {
     double t;
     for (int i = 2; i < argc; i++) {
         data_loader dl = data_loader(argv[i]);
+        std::cout << "processing: " << argv[i];
 
         auto start = std::chrono::high_resolution_clock::now();
         if(dl.load_data(data) != 0){
@@ -42,6 +44,8 @@ int main(int argc, char *argv[]) {
         }
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> diff = end-start;
+
+		std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
 
         j["results"].push_back({
             {"file", argv[i]},
@@ -54,10 +58,8 @@ int main(int argc, char *argv[]) {
 
         std::string dim_names[] = {"x", "y", "z"};
 
-        std::cout << argv[i] << std::endl;
-
-        for(int dim = 0; dim <3; dim++){
-            size_t n_step = data[dim].size()/SIZE_INCR_STEPS + 1;
+        for(size_t dim = 0; dim <3; dim++){
+            size_t n_step = data[dim].size()/SIZE_INCR_STEPS + 1U;
 
             for(size_t step = 1; step <= SIZE_INCR_STEPS; step++){
                 size_t n = std::min(data[dim].size(), n_step*step);
@@ -67,8 +69,8 @@ int main(int argc, char *argv[]) {
                 t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad, res);
 
                 res["avg_time"] = t;
-                j["results"].back()[dim_names[dim]].push_back(res);
-                std::cout << dim_names[dim] << " - " << n << std::endl;
+                (j["results"].back()[dim_names[dim]]).push_back(res);
+                std::cout << "  " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
             }
         }
 
@@ -78,7 +80,16 @@ int main(int argc, char *argv[]) {
     }
 
     std::string ofname = (j["n_threads"].get<int>() > 1 ? "par_" : "ser_") + j["mode"].get<std::string>().substr(0,3) + ".json";
-    std::ofstream o( "out/" + ofname);
-    o << j.dump(2) << std::endl;
-    o.close();
+	ofname = "out_" + ofname;
+    std::ofstream o(ofname);
+    try{
+		o.exceptions(std::ios::badbit | std::ios::failbit);
+		o << j.dump(2) << std::endl;
+		o.close();
+	}
+	catch (std::exception& fail) {
+		std::cerr << "Failed to write to file: " << ofname << std::endl;
+		std::cerr << "Reason: " << strerror(errno) << std::endl;
+		return 1;
+	}
 }
