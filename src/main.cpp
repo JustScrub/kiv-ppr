@@ -1,13 +1,12 @@
 #include "comp_conf.hpp"
 #include "data_loader.hpp"
 #include "calcs.hpp"
-#include "json.hpp"
 #include <chrono>
 #include <iostream>
 #include <errno.h>
 #include <omp.h>
+#include <tuple>
 
-using json = nlohmann::json;
 
 int main(int argc, char *argv[]) {
 
@@ -30,10 +29,9 @@ int main(int argc, char *argv[]) {
         calc = new calcs::VecCalc();
     }
 
-    json j;
-    j["mode"] = atoi(argv[1]) == 0 ? "sequential" : "vectorized";
-    j["n_threads"] = omp_get_max_threads();
-    j["results"] = json::array();
+    std::string calc_mode = atoi(argv[1]) == 0 ? "sequential" : "vectorized";
+    int n_threads = omp_get_max_threads();
+    calcs::CalcData calc_data;
 
     patient_data data;
     float cv, mad;
@@ -52,14 +50,7 @@ int main(int argc, char *argv[]) {
 
 		std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
 
-        j["results"].push_back({
-            {"file", argv[i]},
-            {"size", data.X.size()},
-            {"load_time", diff.count()},
-            {"x", json::array()},       // includes objects: { data_length, avg_time, iters = [ { time, cv, mad } ] }
-            {"y", json::array()},
-            {"z", json::array()}
-        });
+        calc_data[argv[i]] = {calcs::CalcDataArr(), calcs::CalcDataArr(), calcs::CalcDataArr()};
 
         std::string dim_names[] = {"x", "y", "z"};
 
@@ -68,13 +59,10 @@ int main(int argc, char *argv[]) {
 
             for(size_t step = 1; step <= SIZE_INCR_STEPS; step++){
                 size_t n = std::min(data[dim].size(), n_step*step);
-                json res;
-                res["data_length"] = n;
-                res["iters"] = json::array();
-                t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad, res);
 
-                res["avg_time"] = t;
-                (j["results"].back()[dim_names[dim]]).push_back(res);
+                t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad);
+
+                (calc_data[argv[i]])[dim].push_back(std::make_tuple(n, t, cv, mad));
                 std::cout << "  " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
             }
         }
@@ -83,18 +71,4 @@ int main(int argc, char *argv[]) {
         data.Y.clear();
         data.Z.clear();
     }
-
-    std::string ofname = (j["n_threads"].get<int>() > 1 ? "par_" : "ser_") + j["mode"].get<std::string>().substr(0,3) + ".json";
-	ofname = "out_" + ofname;
-    std::ofstream o(ofname);
-    try{
-		o.exceptions(std::ios::badbit | std::ios::failbit);
-		o << j.dump(2) << std::endl;
-		o.close();
-	}
-	catch (std::exception& fail) {
-		std::cerr << "Failed to write to file: " << ofname << std::endl;
-		std::cerr << "Reason: " << strerror(errno) << std::endl;
-		return 1;
-	}
 }

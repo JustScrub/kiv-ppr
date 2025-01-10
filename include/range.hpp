@@ -2,6 +2,7 @@
 #define RANGE_ITER_HPP
 
 #include <iterator>
+#include <stdexcept>
 
 class range_iter {
 

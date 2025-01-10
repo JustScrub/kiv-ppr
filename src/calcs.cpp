@@ -134,7 +134,7 @@ namespace calcs {
         std::sort(data + chunk.lo, data + chunk.hi);
     }
 
-    double Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad, json& j) {
+    double Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad) {
         double time = 0;
         float* _data = new float[n];
         for (unsigned i = 0; i < reps; i++) {
@@ -144,12 +144,6 @@ namespace calcs {
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> diff = end - start;
             time += diff.count();
-
-            j["iters"].push_back({
-                {"time", diff.count()},
-                {"cv", *cv},
-                {"mad", *mad}
-                });
         }
         delete[] _data;
         return time / reps;

@@ -3,9 +3,9 @@
 
 #include <stddef.h>
 #include <vector>
-#include "json.hpp"
-using json = nlohmann::json;
-
+#include <unordered_map>
+#include <tuple>
+#include <array>
 
 namespace calcs {
 
@@ -29,7 +29,7 @@ namespace calcs {
 
         virtual void calc(float* const data, size_t n, float* cv, float* mad);
 
-        double calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad, json &j);
+        double calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad);
 
     };
 
@@ -65,6 +65,33 @@ namespace calcs {
         }
     };
 
+    // structure for storing calculated data
+
+    /*
+    structure:
+        [ data_file: { 
+                x: [ { data_length, avg_time, cv, mad }, ... ],
+                y: ...,
+                z: ... 
+            }, 
+            ... 
+        ]
+    */
+    using CalcDataArr = std::vector<
+        std::tuple<
+            size_t,     // data_length
+            float,      // avg_time
+            float,      // cv
+            float       // mad
+        >
+    >;
+    using CalcData = std::unordered_map<
+        std::string,        // data file name
+        std::array<
+            CalcDataArr,
+            3               // x, y, z  
+        >
+    >;
  
 }
 
