@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <tuple>
 #include <array>
+#include <sstream>
 
 namespace calcs {
 
@@ -92,6 +93,8 @@ namespace calcs {
             3               // x, y, z  
         >
     >;
+
+    std::string calc_data_json_dump(const CalcData& calc_data);
  
 }
 

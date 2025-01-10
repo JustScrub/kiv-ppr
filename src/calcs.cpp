@@ -241,4 +241,33 @@ namespace calcs {
 
     }
 
+
+    std::string calc_data_json_dump(const CalcData& calc_data) {
+        std::string json = "{";
+        for (auto& [file, data] : calc_data) {
+            json += "\t\"" + file + "\": {\n";
+            for (size_t dim = 0; dim < 3; dim++) {
+                json += "\t\t\"" + std::string(1, "x"[dim]) + "\": [\n";
+                for (auto& [n, avg_time, cv, mad] : data[dim]) {
+                    json += "\t\t\t{\n";
+                    json += "\t\t\t\t\"data_length\": " + std::to_string(n) + ",\n";
+                    json += "\t\t\t\t\"avg_time\": " + std::to_string(avg_time) + ",\n";
+                    json += "\t\t\t\t\"cv\": " + std::to_string(cv) + ",\n";
+                    json += "\t\t\t\t\"mad\": " + std::to_string(mad) + "\n";
+                    json += "\t\t\t},\n";
+                }
+                json.pop_back();
+                json.pop_back();
+                json += "\n\t\t],\n";
+            }
+            json.pop_back();
+            json.pop_back();
+            json += "\n\t},\n";
+        }
+        json.pop_back();
+        json.pop_back();
+        json += "\n}\n";
+        return json;
+    }
+
 } // namespace calcs

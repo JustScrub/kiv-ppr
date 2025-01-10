@@ -71,4 +71,6 @@ int main(int argc, char *argv[]) {
         data.Y.clear();
         data.Z.clear();
     }
+
+    std::cout << calcs::calc_data_json_dump(calc_data) << std::endl;
 }
