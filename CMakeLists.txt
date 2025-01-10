@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 project(KIV_PPR_MLADY)
-
-# Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 
-# Set compiler specific flags
+# Set compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /arch:AVX2")
 
 # Find OpenCL
@@ -12,26 +10,18 @@ find_package(OpenCL REQUIRED)
 
 # Include directories
 include_directories(src)
-#include_directories(lib)
 include_directories("include")
 
-# Drawing library files from https://github.com/SmartCGMS/common.git
-# set(
-#     drawing_lib
-#     lib/drawing/Drawing.cpp
-#     lib/drawing/Drawing.h
-#     lib/drawing/IRenderer.h
-#     lib/drawing/SVGRenderer.cpp
-#     lib/drawing/SVGRenderer.h
-# )
-
+# SVG drawing library stolen from https://github.com/SmartCGMS/common/tree/devel/scgms/utils/drawing
+file(GLOB svg_sources include/drawing/*.cpp include/drawing/*.h)
+# project sources
 file(GLOB prj_sources src/*.cpp)
 
-# Add executable
+# Add sources to the project
 add_executable(
     KIV_PPR_MLADY
     ${prj_sources}
-#    ${drawing_lib}
+    ${svg_sources}
 #    src/my_drawing/svg_generator.h
 #    src/my_drawing/svg_generator.cpp
 )
