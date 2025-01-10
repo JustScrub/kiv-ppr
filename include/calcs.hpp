@@ -27,7 +27,7 @@ namespace calcs {
 
         float reduce_sum(float* data, size_t n);
 
-        void calc(float* const data, size_t n, float* cv, float* mad);
+        virtual void calc(float* const data, size_t n, float* cv, float* mad);
 
         double calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad, json &j);
 
@@ -47,6 +47,22 @@ namespace calcs {
         void sum_chunk(const float* const data, Chunk& chunk, float* const out) override;
         void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) override;
         void abs_chunk(float* const data, Chunk& chunk) override;
+    };
+
+    // GPU using OpenCL
+    class GpuCalc : public Calc {
+    public:
+        void calc(float* const data, size_t n, float* cv, float* mad) override;
+
+        void sum_chunk(const float* const data, Chunk& chunk, float* const out) override {
+            // not implemented
+        }
+        void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) override {
+            // not implemented
+        }
+        void abs_chunk(float* const data, Chunk& chunk) override {
+            // not implemented
+        }
     };
 
  

@@ -8,7 +8,7 @@
 
 struct patient_data {
     std::vector<float> X, Y, Z;
-    size_t id;
+    //size_t id;
 
     std::vector<float> &operator[](size_t i) {
         if(i == 0) return X;
