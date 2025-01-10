@@ -10,10 +10,12 @@
 
 int main(int argc, char *argv[]) {
 
+    /*
     calcs::Calc *tcalc = new calcs::GpuCalc();
     tcalc->calc(nullptr, 0, nullptr, nullptr);
 
     exit(0);
+    */
 
     if(argc <3 ){
         std::cerr << "Usage: " << argv[0] << " <mode> <filename> ..." << std::endl;
