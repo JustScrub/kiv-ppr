@@ -6,6 +6,7 @@
 #include <immintrin.h>
 #include <math.h>
 #include <sstream>
+#include <fstream>
 #include <iomanip>
 
 namespace calcs {
@@ -289,7 +290,7 @@ namespace calcs {
     std::string plot_line_data_svg(
         const std::string title, 
         const std::vector<size_t>& x_values, 
-        const std::vector<std::pair<std::string, std::vector<float>& >>& lines
+        const std::vector<SvgLine>& lines
         ) {
         std::ostringstream svg;
         float margin = 70;
@@ -361,5 +362,60 @@ namespace calcs {
         svg << "</svg>\n";
         return svg.str();
     }
+
+    void plot_line_data_svg(
+        const std::string file_prefix,
+        const CalcData& calc_data,
+        int argc, char** argv
+        ) {
+            static std::string modes[] = {"GPU", "seq_ser", "seq_par", "vec_ser", "vec_par"};
+            std::vector<SvgLine> avgtime_lines;
+            std::vector<SvgLine> cv_lines;
+            std::vector<SvgLine> mad_lines;
+
+            for(--argc; argc > 1; --argc ) {
+                for(size_t dim = 0; dim < 3; ++dim){
+                
+                    avgtime_lines.clear();
+                    cv_lines.clear();
+                    mad_lines.clear();
+                    std::string key_name;
+                    // collect data for each mode and each metric
+                    for(std::string mode : modes) {
+                        key_name = argv[argc];
+                        key_name += "::" + mode;
+                        if(calc_data.find(key_name) == calc_data.end()) continue; // skip if data not found
+
+                        avgtime_lines.push_back(std::make_pair(mode, std::ref(std::get<1>(calc_data.at(key_name)[dim]))));
+                        cv_lines.push_back(std::make_pair(mode, std::ref(std::get<2>(calc_data.at(key_name)[dim]))));
+                        mad_lines.push_back(std::make_pair(mode, std::ref(std::get<3>(calc_data.at(key_name)[dim]))));
+                    }
+                    if(avgtime_lines.empty()) continue; // skip if no data found
+
+                    // generate SVGs
+                    std::string fname = file_prefix + std::to_string(argc) + "_" + std::string(1, "XYZ"[dim]) + "_";
+                    const std::vector<size_t> &x_values = std::get<0>(calc_data.at(key_name)[dim]);
+                    // average time
+                    (std::ofstream(fname + "avgtime.svg") << plot_line_data_svg(
+                            "Average time", 
+                            x_values, 
+                            avgtime_lines)
+                    ).close();
+                    // coefficient of variation
+                    (std::ofstream(fname + "cv.svg") << plot_line_data_svg(
+                            "Coefficient of variation", 
+                            x_values, 
+                            cv_lines)
+                    ).close();
+                    // median absolute deviation
+                    (std::ofstream(fname + "mad.svg") << plot_line_data_svg(
+                            "Median absolute deviation", 
+                            x_values, 
+                            mad_lines)
+                    ).close();
+
+                }
+            }
+        }
 
 } // namespace calcs

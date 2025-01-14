@@ -48,8 +48,9 @@ int main(int argc, char *argv[]) {
         calc = new calcs::VecCalc();
     }
 
-    std::string calc_mode = atoi(argv[1]) == 0 ? "sequential" : "vectorized";
+    std::string calc_mode = atoi(argv[1]) == 0 ? "seq" : "vec";
     int n_threads = omp_get_max_threads();
+    calc_mode += n_threads > 1 ? "_par" : "_ser";
     calcs::CalcData calc_data;
 
     patient_data data;
@@ -68,8 +69,9 @@ int main(int argc, char *argv[]) {
         std::chrono::duration<float> diff = end-start;
 
 		std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
-
-        calc_data[argv[i]] = {
+        std::string key_name = argv[i];
+        key_name += "::" + calc_mode;
+        calc_data[key_name] = {
             std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
             std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
             std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>())
@@ -85,10 +87,10 @@ int main(int argc, char *argv[]) {
 
                 t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad);
 
-                std::get<0>((calc_data[argv[i]])[dim]).push_back(n);
-                std::get<1>((calc_data[argv[i]])[dim]).push_back(t);
-                std::get<2>((calc_data[argv[i]])[dim]).push_back(cv);
-                std::get<3>((calc_data[argv[i]])[dim]).push_back(mad);
+                std::get<0>((calc_data[key_name])[dim]).push_back(n);
+                std::get<1>((calc_data[key_name])[dim]).push_back(t);
+                std::get<2>((calc_data[key_name])[dim]).push_back(cv);
+                std::get<3>((calc_data[key_name])[dim]).push_back(mad);
                 std::cout << "  " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
             }
         }
@@ -98,19 +100,7 @@ int main(int argc, char *argv[]) {
         data.Z.clear();
     }
 
-    calcs::CalcDataArr& x = calc_data.begin()->second[0];
-    std::string svg = calcs::plot_line_data_svg(
-        "X Measurements vs data length (" + calc_mode + ")", 
-        std::get<0>(x), 
-        std::vector<std::pair<std::string, std::vector<float>& >>{
-            {"avg time", std::get<1>(x)},
-            {"cv", std::get<2>(x)},
-            {"mad", std::get<3>(x)}
-        });
-
-    std::ofstream file("plot.svg");
-    file << svg;
-    file.close();
+    calcs::plot_line_data_svg("plots/", calc_data, argc, argv);
 
     std::cout << calcs::calc_data_json_dump(calc_data) << std::endl;
 }

@@ -94,10 +94,17 @@ namespace calcs {
 
     std::string calc_data_json_dump(const CalcData& calc_data);
  
+    using SvgLine = std::pair<std::string, const std::vector<float>& >; // line name, line data
     std::string plot_line_data_svg(
         const std::string title, 
         const std::vector<size_t>& x_values, 
-        const std::vector<std::pair<std::string, std::vector<float>& >>& lines
+        const std::vector<SvgLine>& lines
+        );
+
+    void plot_line_data_svg(
+        const std::string file_prefix,
+        const CalcData& calc_data,
+        int argc, char** argv
         );
 }
 
