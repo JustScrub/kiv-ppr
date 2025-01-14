@@ -30,7 +30,7 @@ namespace calcs {
 
         virtual void calc(float* const data, size_t n, float* cv, float* mad);
 
-        double calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad);
+        float calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad);
 
     };
 
@@ -71,20 +71,18 @@ namespace calcs {
     /*
     structure:
         [ data_file: { 
-                x: [ { data_length, avg_time, cv, mad }, ... ],
+                x: [ [ data lengths...], [ avg_times...], [ cv...], [ mad...]],
                 y: ...,
                 z: ... 
             }, 
             ... 
         ]
     */
-    using CalcDataArr = std::vector<
-        std::tuple<
-            size_t,     // data_length
-            float,      // avg_time
-            float,      // cv
-            float       // mad
-        >
+    using CalcDataArr = std::tuple<
+        std::vector<size_t>,    // data lengths
+        std::vector<float>,     // avg times
+        std::vector<float>,     // cv
+        std::vector<float>      // mad
     >;
     using CalcData = std::unordered_map<
         std::string,        // data file name
@@ -96,6 +94,11 @@ namespace calcs {
 
     std::string calc_data_json_dump(const CalcData& calc_data);
  
+    std::string plot_line_data_svg(
+        const std::string title, 
+        const std::vector<size_t>& x_values, 
+        const std::vector<std::pair<std::string, std::vector<float>& >>& lines
+        );
 }
 
 #endif // CALCS_HPP

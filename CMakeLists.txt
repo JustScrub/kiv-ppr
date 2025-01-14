@@ -12,8 +12,6 @@ find_package(OpenCL REQUIRED)
 include_directories(src)
 include_directories("include")
 
-# SVG drawing library stolen from https://github.com/SmartCGMS/common/tree/devel/scgms/utils/drawing
-file(GLOB svg_sources include/drawing/*.cpp include/drawing/*.h)
 # project sources
 file(GLOB prj_sources src/*.cpp)
 
@@ -21,7 +19,6 @@ file(GLOB prj_sources src/*.cpp)
 add_executable(
     KIV_PPR_MLADY
     ${prj_sources}
-    ${svg_sources}
 #    src/my_drawing/svg_generator.h
 #    src/my_drawing/svg_generator.cpp
 )

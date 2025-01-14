@@ -13,9 +13,26 @@ int main(int argc, char *argv[]) {
     /*
     calcs::Calc *tcalc = new calcs::GpuCalc();
     tcalc->calc(nullptr, 0, nullptr, nullptr);
+    */
+   /*
+    std::vector<size_t> x_values = {1, 200, 3000, 40000, 500000000};
+    std::vector<float> line1 = {-3.234, -2.345, -1.456, -0.567, 0.321};
+    std::vector<float> line2 = {0.123, 1.234, 2.345, 3.456, 4.567};
+    std::vector<float> line3 = {4.567, 3.456, 2.345, 1.234, 6.3};
+    std::vector<std::pair<std::string, std::vector<float>& >> lines_data = {
+        {"GPU", line1},
+        {"sequential parallel", line2},
+        {"vectorized serial", line3}
+    };
 
+    std::string tsvg = calcs::plot_line_data_svg("title", x_values, lines_data);
+    //write to file
+    std::ofstream tfile("plot.svg");
+    tfile << tsvg;
+    tfile.close();
     exit(0);
     */
+
 
     if(argc <3 ){
         std::cerr << "Usage: " << argv[0] << " <mode> <filename> ..." << std::endl;
@@ -37,7 +54,7 @@ int main(int argc, char *argv[]) {
 
     patient_data data;
     float cv, mad;
-    double t;
+    float t;
     for (int i = 2; i < argc; i++) {
         data_loader dl = data_loader(argv[i]);
         std::cout << "processing: " << argv[i];
@@ -48,11 +65,15 @@ int main(int argc, char *argv[]) {
             continue;
         }
         auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> diff = end-start;
+        std::chrono::duration<float> diff = end-start;
 
 		std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
 
-        calc_data[argv[i]] = {calcs::CalcDataArr(), calcs::CalcDataArr(), calcs::CalcDataArr()};
+        calc_data[argv[i]] = {
+            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
+            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
+            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>())
+        };
 
         std::string dim_names[] = {"x", "y", "z"};
 
@@ -64,7 +85,10 @@ int main(int argc, char *argv[]) {
 
                 t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad);
 
-                (calc_data[argv[i]])[dim].push_back(std::make_tuple(n, t, cv, mad));
+                std::get<0>((calc_data[argv[i]])[dim]).push_back(n);
+                std::get<1>((calc_data[argv[i]])[dim]).push_back(t);
+                std::get<2>((calc_data[argv[i]])[dim]).push_back(cv);
+                std::get<3>((calc_data[argv[i]])[dim]).push_back(mad);
                 std::cout << "  " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
             }
         }
@@ -73,6 +97,20 @@ int main(int argc, char *argv[]) {
         data.Y.clear();
         data.Z.clear();
     }
+
+    calcs::CalcDataArr& x = calc_data.begin()->second[0];
+    std::string svg = calcs::plot_line_data_svg(
+        "X Measurements vs data length (" + calc_mode + ")", 
+        std::get<0>(x), 
+        std::vector<std::pair<std::string, std::vector<float>& >>{
+            {"avg time", std::get<1>(x)},
+            {"cv", std::get<2>(x)},
+            {"mad", std::get<3>(x)}
+        });
+
+    std::ofstream file("plot.svg");
+    file << svg;
+    file.close();
 
     std::cout << calcs::calc_data_json_dump(calc_data) << std::endl;
 }

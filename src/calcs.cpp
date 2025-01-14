@@ -5,6 +5,8 @@
 #include <omp.h>
 #include <immintrin.h>
 #include <math.h>
+#include <sstream>
+#include <iomanip>
 
 namespace calcs {
 
@@ -134,15 +136,15 @@ namespace calcs {
         std::sort(data + chunk.lo, data + chunk.hi);
     }
 
-    double Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad) {
-        double time = 0;
+    float Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad) {
+        float time = 0;
         float* _data = new float[n];
         for (unsigned i = 0; i < reps; i++) {
             std::copy(data, data + n, _data);
             auto start = std::chrono::high_resolution_clock::now();
             calc(_data, n, cv, mad);
             auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> diff = end - start;
+            std::chrono::duration<float> diff = end - start;
             time += diff.count();
         }
         delete[] _data;
@@ -247,18 +249,32 @@ namespace calcs {
         for (auto& [file, data] : calc_data) {
             json += "\t\"" + file + "\": {\n";
             for (size_t dim = 0; dim < 3; dim++) {
-                json += "\t\t\"" + std::string(1, "xyz"[dim]) + "\": [\n";
-                for (auto& [n, avg_time, cv, mad] : data[dim]) {
-                    json += "\t\t\t{\n";
-                    json += "\t\t\t\t\"data_length\": " + std::to_string(n) + ",\n";
-                    json += "\t\t\t\t\"avg_time\": " + std::to_string(avg_time) + ",\n";
-                    json += "\t\t\t\t\"cv\": " + std::to_string(cv) + ",\n";
-                    json += "\t\t\t\t\"mad\": " + std::to_string(mad) + "\n";
-                    json += "\t\t\t},\n";
+                json += "\t\t\"" + std::string(1, "xyz"[dim]) + "\": {\n";
+                json += "\t\t\t\"lengths\": [";
+                for (size_t i = 0; i < std::get<0>(data[dim]).size(); i++) {
+                    json += std::to_string(std::get<0>(data[dim])[i]) + ", ";
                 }
-                json.pop_back();
-                json.pop_back();
-                json += "\n\t\t],\n";
+                json.pop_back(); json.pop_back();
+                json += "],\n";
+                json += "\t\t\t\"avg_times\": [";
+                for (size_t i = 0; i < std::get<1>(data[dim]).size(); i++) {
+                    json += std::to_string(std::get<1>(data[dim])[i]) + ", ";
+                }
+                json.pop_back(); json.pop_back();
+                json += "],\n";
+                json += "\t\t\t\"cv\": [";
+                for (size_t i = 0; i < std::get<2>(data[dim]).size(); i++) {
+                    json += std::to_string(std::get<2>(data[dim])[i]) + ", ";
+                }
+                json.pop_back(); json.pop_back();
+                json += "],\n";
+                json += "\t\t\t\"mad\": [";
+                for (size_t i = 0; i < std::get<3>(data[dim]).size(); i++) {
+                    json += std::to_string(std::get<3>(data[dim])[i]) + ", ";
+                }
+                json.pop_back(); json.pop_back();
+                json += "]";
+                json += "\n\t\t},\n";
             }
             json.pop_back();
             json.pop_back();
@@ -268,6 +284,82 @@ namespace calcs {
         json.pop_back();
         json += "\n}\n";
         return json;
+    }
+
+    std::string plot_line_data_svg(
+        const std::string title, 
+        const std::vector<size_t>& x_values, 
+        const std::vector<std::pair<std::string, std::vector<float>& >>& lines
+        ) {
+        std::ostringstream svg;
+        float margin = 70;
+        float left_margin = 70;
+        float width = 1000;
+        float height = 600;
+
+        svg << "<svg width=\"" << width << "\" height=\"" << height << "\" xmlns=\"http://www.w3.org/2000/svg\">\n";
+        svg << "<rect width=\"100%\" height=\"100%\" fill=\"white\"/>\n";
+
+        // Draw title
+        svg << "<text x=\"" << width / 2 << "\" y=\"" << margin / 2 << "\" font-size=\"30\" text-anchor=\"middle\">" << title << "</text>\n";
+
+        // Draw axes
+        svg << "<line x1=\"" << left_margin << "\" y1=\"" << margin << "\" x2=\"" << left_margin << "\" y2=\"" << height - margin << "\" stroke=\"black\"/>\n";
+        svg << "<line x1=\"" << left_margin << "\" y1=\"" << height - margin << "\" x2=\"" << width - margin << "\" y2=\"" << height - margin << "\" stroke=\"black\"/>\n";
+
+        // Draw X-axis labels and grid
+        // skew labels to avoid overlap
+        for (size_t i = 0; i < x_values.size(); ++i) {
+            float x = left_margin + (i + 1) * (width - margin - left_margin) / (x_values.size() + 1);
+            float y = height - margin / 2;
+            svg << "<text x=\"" << x << "\" y=\"" << y << "\" font-size=\"20\" text-anchor=\"middle\" transform=\"rotate(-45 " << x << " " << y << ")\">" << x_values[i] << "</text>\n";
+            svg << "<line x1=\"" << x << "\" y1=\"" << margin << "\" x2=\"" << x << "\" y2=\"" << height - margin << "\" stroke=\"lightgray\"/>\n";
+        }
+
+        // Determine scaling factor
+        float y_min = std::numeric_limits<float>::max();
+        float y_max = std::numeric_limits<float>::min();
+
+        for (const auto& line : lines) {
+            y_min = std::min(y_min, *std::min_element(line.second.begin(), line.second.end()));
+            y_max = std::max(y_max, *std::max_element(line.second.begin(), line.second.end()));
+        }
+
+        float y_scale = (height - 2 * margin) / (y_max - y_min);
+
+        // Draw Y-axis labels and grid
+        for (size_t i = 0; i < 5; ++i) {
+            float y = height - margin - i * (height - 2 * margin) / 5;
+            svg << "<text x=\"" << left_margin << "\" y=\"" << y << "\" font-size=\"20\" text-anchor=\"end\">" << std::fixed << std::setprecision(3) << y_min + i * (y_max - y_min) / 5 << "</text>\n";
+            svg << "<line x1=\"" << left_margin << "\" y1=\"" << y << "\" x2=\"" << width - margin << "\" y2=\"" << y << "\" stroke=\"lightgray\"/>\n";
+        }
+
+        // Set collor pallette
+        std::string colors[] = { "red", "green", "blue", "orange", "purple" };
+        size_t i = 0;
+        // Plot lines
+        for (const auto& line : lines) {
+            svg << "<polyline fill=\"none\" stroke=\"" << colors[i++] << "\" points=\"";
+            for (size_t j = 0; j < line.second.size(); ++j) {
+                float x = left_margin + (j + 1) * (width - margin - left_margin) / (x_values.size() + 1);
+                float y = height - margin - (line.second[j] - y_min) * y_scale;
+                svg << x << "," << y << " ";
+            }
+            svg << "\"/>\n";
+        }
+
+        // Draw legend -- text is same color as line
+        // below title, in line
+        i = 0;
+        float legend_x = width - margin;
+        float legend_y = margin;
+        for (const auto& line : lines) {
+            svg << "<text x=\"" << legend_x << "\" y=\"" << legend_y << "\" font-size=\"20\" text-anchor=\"end\" fill=\"" << colors[i++] << "\">" << line.first << "</text>\n";
+            legend_y += 30;
+        }
+
+        svg << "</svg>\n";
+        return svg.str();
     }
 
 } // namespace calcs
