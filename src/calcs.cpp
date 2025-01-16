@@ -269,10 +269,11 @@ namespace calcs {
 
     /* ----------------- RESULTS OUTPUTS -------------------- */
 
-    std::string calc_data_json_dump(const CalcData& calc_data) {
+    std::string calc_data_json_dump(const CalcData& calc_data, std::string file_name) {
         std::string json = "{\n";
-        for (auto& [file, data] : calc_data) {
-            json += "\t\"" + file + "\": {\n";
+        json += "\t\"file\": \"" + file_name + "\",\n";
+        for (auto& [mode, data] : calc_data) {
+            json += "\t\"" + mode + "\": {\n";
             for (size_t dim = 0; dim < 3; dim++) {
                 json += "\t\t\"" + std::string(1, "xyz"[dim]) + "\": {\n";
                 json += "\t\t\t\"lengths\": [";
@@ -388,58 +389,52 @@ namespace calcs {
     }
 
     void plot_line_data_svg(
-        const std::string file_prefix,
-        const CalcData& calc_data,
-        int argc, char** argv
+        const std::string out_file_prefix,
+        const CalcData& calc_data
         ) {
-            static std::string modes[] = {"GPU", "seq_ser", "seq_par", "vec_ser", "vec_par"};
             std::vector<SvgLine> avgtime_lines;
             std::vector<SvgLine> cv_lines;
             std::vector<SvgLine> mad_lines;
 
-            for(--argc; argc > 1; --argc ) {
-                for(size_t dim = 0; dim < 3; ++dim){
-                
-                    avgtime_lines.clear();
-                    cv_lines.clear();
-                    mad_lines.clear();
-                    std::string key_name;
-                    // collect data for each mode and each metric
-                    for(std::string mode : modes) {
-                        key_name = argv[argc];
-                        key_name += "::" + mode;
-                        if(calc_data.find(key_name) == calc_data.end()) continue; // skip if data not found
+            for(size_t dim = 0; dim < 3; ++dim){
+                avgtime_lines.clear();
+                cv_lines.clear();
+                mad_lines.clear();
+                std::string mode_name;
+                // collect data for each mode and each metric
+                for(int mode = 0; mode < 5; mode++){ 
+                    if( (Conf::MODES & (1 << mode)) == 0 ) continue; // skip if mode not enabled
+                    mode_name = Conf::mode_names[mode];
+                    if(calc_data.find(mode_name) == calc_data.end()) continue; // skip if data not found
 
-                        avgtime_lines.push_back(std::make_pair(mode, std::ref(std::get<1>(calc_data.at(key_name)[dim]))));
-                        cv_lines.push_back(std::make_pair(mode, std::ref(std::get<2>(calc_data.at(key_name)[dim]))));
-                        mad_lines.push_back(std::make_pair(mode, std::ref(std::get<3>(calc_data.at(key_name)[dim]))));
-                    }
-                    if(avgtime_lines.empty()) continue; // skip if no data found
+                    avgtime_lines.push_back(std::make_pair(mode_name, std::ref(std::get<1>(calc_data.at(mode_name)[dim]))));
+                    cv_lines.push_back(std::make_pair(mode_name, std::ref(std::get<2>(calc_data.at(mode_name)[dim]))));
+                    mad_lines.push_back(std::make_pair(mode_name, std::ref(std::get<3>(calc_data.at(mode_name)[dim]))));
+                }
+                if(avgtime_lines.empty()) continue; // skip if no data found
 
-                    // generate SVGs
-                    std::string fname = file_prefix + std::to_string(argc) + "_" + std::string(1, "XYZ"[dim]) + "_";
-                    const std::vector<size_t> &x_values = std::get<0>(calc_data.at(key_name)[dim]);
-                    // average time
-                    (std::ofstream(fname + "avgtime.svg") << plot_line_data_svg(
-                            "Average time", 
-                            x_values, 
-                            avgtime_lines)
-                    ).close();
-                    // coefficient of variation
-                    (std::ofstream(fname + "cv.svg") << plot_line_data_svg(
-                            "Coefficient of variation", 
-                            x_values, 
-                            cv_lines)
-                    ).close();
-                    // median absolute deviation
-                    (std::ofstream(fname + "mad.svg") << plot_line_data_svg(
-                            "Median absolute deviation", 
-                            x_values, 
-                            mad_lines)
-                    ).close();
+                // generate SVGs
+                std::string fname = out_file_prefix + "_" + std::string(1, "XYZ"[dim]) + "_";
+                const std::vector<size_t> &x_values = std::get<0>(calc_data.at(mode_name)[dim]);
+                // average time
+                (std::ofstream(fname + "avgtime.svg") << plot_line_data_svg(
+                        "Average time", 
+                        x_values, 
+                        avgtime_lines)
+                ).close();
+                // coefficient of variation
+                (std::ofstream(fname + "cv.svg") << plot_line_data_svg(
+                        "Coefficient of variation", 
+                        x_values, 
+                        cv_lines)
+                ).close();
+                // median absolute deviation
+                (std::ofstream(fname + "mad.svg") << plot_line_data_svg(
+                        "Median absolute deviation", 
+                        x_values, 
+                        mad_lines)
+                ).close();
 
                 }
-            }
         }
-
 } // namespace calcs

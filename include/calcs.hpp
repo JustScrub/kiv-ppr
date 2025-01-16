@@ -82,14 +82,17 @@ namespace calcs {
 
     /*
     structure:
-        [ data_file: { 
+        [ mode: { 
                 x: [ [ data lengths...], [ avg_times...], [ cv...], [ mad...]],
                 y: ...,
                 z: ... 
             }, 
             ... 
         ]
+
+    One CalcData object per file.
     */
+
     using CalcDataArr = std::tuple<
         std::vector<size_t>,    // data lengths
         std::vector<float>,     // avg times
@@ -97,14 +100,14 @@ namespace calcs {
         std::vector<float>      // mad
     >;
     using CalcData = std::unordered_map<
-        std::string,        // data file name
+        std::string,        // mode name
         std::array<
             CalcDataArr,
             3               // x, y, z  
         >
     >;
 
-    std::string calc_data_json_dump(const CalcData& calc_data);
+    std::string calc_data_json_dump(const CalcData& calc_data, const std::string file_name);
  
     using SvgLine = std::pair<std::string, const std::vector<float>& >; // line name, line data
     std::string plot_line_data_svg(
@@ -115,8 +118,7 @@ namespace calcs {
 
     void plot_line_data_svg(
         const std::string file_prefix,
-        const CalcData& calc_data,
-        int argc, char** argv
+        const CalcData& calc_data
         );
 }
 

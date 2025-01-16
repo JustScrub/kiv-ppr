@@ -46,17 +46,6 @@ int main(int argc, char *argv[]) {
 
     calcs::Calc *calc;
 
-    if(atoi(argv[1]) == 0){
-        calc = new calcs::SeqCalc();
-    } else {
-        calc = new calcs::VecCalc();
-    }
-
-    std::string calc_mode = atoi(argv[1]) == 0 ? "seq" : "vec";
-    int n_threads = omp_get_max_threads();
-    calc_mode += n_threads > 1 ? "_par" : "_ser";
-    calcs::CalcData calc_data;
-
     patient_data data;
     float cv, mad;
     float t;
@@ -71,40 +60,47 @@ int main(int argc, char *argv[]) {
         }
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<float> diff = end-start;
+        std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
 
-		std::cout << " (loaded in " << diff.count() << " s):" << std::endl;
-        std::string key_name = argv[i];
-        key_name += "::" + calc_mode;
-        calc_data[key_name] = {
-            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
-            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
-            std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>())
-        };
+        calcs::CalcData calc_data; // new for each file
 
-        std::string dim_names[] = {"x", "y", "z"};
+        for(int m = 0; m < 5; m++) { //modes
+            if((calc = calcs::calc_builder( Conf::MODES & (1<<m) )) == nullptr) continue;
+            std::string mode_name = Conf::mode_names[m];
 
-        for(size_t dim = 0; dim <3; dim++){
-            size_t n_step = data[dim].size()/Conf::SIZE_INCR_STEPS + 1U;
+            calc_data[mode_name] = {
+                std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
+                std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>()),
+                std::make_tuple(std::vector<size_t>(), std::vector<float>(), std::vector<float>(), std::vector<float>())
+            };
 
-            for(size_t step = 1; step <= Conf::SIZE_INCR_STEPS; step++){
-                size_t n = std::min(data[dim].size(), n_step*step);
+            std::string dim_names[] = {"x", "y", "z"};
 
-                t = calc->calc_time(data[dim].data(), n, Conf::NUM_REPS, &cv, &mad);
+            std::cout << "  " << mode_name << ":" << std::endl;
+            for(size_t dim = 0; dim <3; dim++){
+                size_t n_step = data[dim].size()/Conf::SIZE_INCR_STEPS + 1U;
 
-                std::get<0>((calc_data[key_name])[dim]).push_back(n);
-                std::get<1>((calc_data[key_name])[dim]).push_back(t);
-                std::get<2>((calc_data[key_name])[dim]).push_back(cv);
-                std::get<3>((calc_data[key_name])[dim]).push_back(mad);
-                std::cout << "  " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
-            }
-        }
+                for(size_t step = 1; step <= Conf::SIZE_INCR_STEPS; step++){
+                    size_t n = std::min(data[dim].size(), n_step*step);
+
+                    t = calc->calc_time(data[dim].data(), n, Conf::NUM_REPS, &cv, &mad);
+
+                    std::get<0>((calc_data[mode_name])[dim]).push_back(n);
+                    std::get<1>((calc_data[mode_name])[dim]).push_back(t);
+                    std::get<2>((calc_data[mode_name])[dim]).push_back(cv);
+                    std::get<3>((calc_data[mode_name])[dim]).push_back(mad);
+                    std::cout << "    " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
+                } // data length steps
+            } // dimensions
+            delete calc;
+        } // modes
+
+        calcs::plot_line_data_svg("plots/" + std::to_string(i-1), calc_data);
+        std::cout << calcs::calc_data_json_dump(calc_data, argv[i]) << std::endl;
 
         data.X.clear();
         data.Y.clear();
         data.Z.clear();
     }
 
-    calcs::plot_line_data_svg("plots/", calc_data, argc, argv);
-
-    std::cout << calcs::calc_data_json_dump(calc_data) << std::endl;
 }

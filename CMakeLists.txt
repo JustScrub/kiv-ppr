@@ -19,8 +19,6 @@ file(GLOB prj_sources src/*.cpp)
 add_executable(
     KIV_PPR_MLADY
     ${prj_sources}
-#    src/my_drawing/svg_generator.h
-#    src/my_drawing/svg_generator.cpp
 )
 
 # Link OpenCL
