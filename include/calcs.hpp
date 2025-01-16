@@ -66,6 +66,18 @@ namespace calcs {
         }
     };
 
+    /* 
+     * Factory function for creating Calc objects.
+     * mode: 
+     * - 1 = sequential serial,
+     * - 2 = sequential parallel,
+     * - 4 = vectorized serial,
+     * - 8 = vectorized parallel,
+     * - 16 = GPU 
+     * returns: pointer to Calc object or nullptr if mode is invalid
+     */
+    Calc *calc_builder(int mode);
+
     // structure for storing calculated data
 
     /*

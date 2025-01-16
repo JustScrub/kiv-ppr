@@ -1,5 +1,5 @@
 #include "calcs.hpp"
-#include "comp_conf.hpp"
+#include "conf_loader.hpp"
 #include <chrono>
 #include <algorithm>
 #include <omp.h>
@@ -15,15 +15,15 @@ namespace calcs {
 
         // n is the number of elements in the data array
         // CHUNK_SIZE is the size of the cache in bytes
-        size_t n_chunks = (n / CHUNK_CAPACITY) + (size_t)(n % CHUNK_CAPACITY != 0);
+        size_t n_chunks = (n / Conf::CHUNK_CAPACITY) + (size_t)(n % Conf::CHUNK_CAPACITY != 0);
         Chunk* chunks = new Chunk[n_chunks];
         float* sums = new float[n_chunks];
 
         // divide the data into chunks
 #pragma omp parallel for
         for (size_t i = 0; i < n_chunks; i++) {
-            chunks[i].lo = i * CHUNK_CAPACITY;
-            chunks[i].hi = std::min(n, (i + 1) * CHUNK_CAPACITY);
+            chunks[i].lo = i * Conf::CHUNK_CAPACITY;
+            chunks[i].hi = std::min(n, (i + 1) * Conf::CHUNK_CAPACITY);
         }
 
         // sum and sort each chunk
@@ -108,7 +108,7 @@ namespace calcs {
     float Calc::reduce_sum(float* data, size_t n) {
         float sum = 0;
 
-        size_t n_chunks = (n / CHUNK_CAPACITY) + (size_t)(n % CHUNK_CAPACITY != 0);
+        size_t n_chunks = (n / Conf::CHUNK_CAPACITY) + (size_t)(n % Conf::CHUNK_CAPACITY != 0);
         float* _sums = new float[n_chunks];
         float* sums = _sums;
         float* tmp;
@@ -117,11 +117,11 @@ namespace calcs {
 #pragma omp parallel for
             for (size_t i = 0; i < n_chunks; i++) {
                 sums[i] = 0;
-                Chunk chunk = { i * CHUNK_CAPACITY, std::min(n, (i + 1) * CHUNK_CAPACITY) };
+                Chunk chunk = { i * Conf::CHUNK_CAPACITY, std::min(n, (i + 1) * Conf::CHUNK_CAPACITY) };
                 sum_chunk(data, chunk, &sums[i]);
             }
             n = n_chunks;
-            n_chunks = (n / CHUNK_CAPACITY) + (size_t)(n % CHUNK_CAPACITY != 0);
+            n_chunks = (n / Conf::CHUNK_CAPACITY) + (size_t)(n % Conf::CHUNK_CAPACITY != 0);
             tmp = data;
             data = sums;
             sums = tmp;
@@ -186,8 +186,8 @@ namespace calcs {
         __m256 sum = _mm256_setzero_ps();
         float ret = 0;
         size_t i;
-        for (i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP) {
-            __m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
+        for (i = chunk.lo + Conf::VEC_REG_CAP; i <= chunk.hi; i += Conf::VEC_REG_CAP) {
+            __m256 vec = _mm256_loadu_ps(data + i - Conf::VEC_REG_CAP);
             sum = _mm256_add_ps(sum, vec);
         }
         sum = _mm256_hadd_ps(sum, sum);
@@ -195,7 +195,7 @@ namespace calcs {
         ret = ((float*)&sum)[0] + ((float*)&sum)[4];
 
         // sum the rest -> max VEC_REG_CAP - 1 elements
-        for (i = i - VEC_REG_CAP; i < chunk.hi; i++) {
+        for (i = i - Conf::VEC_REG_CAP; i < chunk.hi; i++) {
             ret += data[i];
         }
         *out = ret;
@@ -208,21 +208,21 @@ namespace calcs {
         __m256 sum = _mm256_setzero_ps();
         size_t i;
         float ret = 0;
-        for (i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP) {
-            __m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
+        for (i = chunk.lo + Conf::VEC_REG_CAP; i <= chunk.hi; i += Conf::VEC_REG_CAP) {
+            __m256 vec = _mm256_loadu_ps(data + i - Conf::VEC_REG_CAP);
             __m256 diff = _mm256_sub_ps(vec, _mean);
             __m256 sq = _mm256_mul_ps(diff, diff);
             sum = _mm256_add_ps(sum, sq);
 
             diff = _mm256_sub_ps(vec, _med);
-            _mm256_storeu_ps(data + i - VEC_REG_CAP, diff);
+            _mm256_storeu_ps(data + i - Conf::VEC_REG_CAP, diff);
         }
         sum = _mm256_hadd_ps(sum, sum);
         sum = _mm256_hadd_ps(sum, sum);
         ret = ((float*)&sum)[0] + ((float*)&sum)[4];
 
-        // do the rest -> max VEC_REG_CAP - 1 elements
-        for (i = i - VEC_REG_CAP; i < chunk.hi; i++) {
+        // do the rest -> max Conf::VEC_REG_CAP - 1 elements
+        for (i = i - Conf::VEC_REG_CAP; i < chunk.hi; i++) {
             ret += (data[i] - mean) * (data[i] - mean);
             data[i] -= med;
         }
@@ -232,18 +232,42 @@ namespace calcs {
     void VecCalc::abs_chunk(float* const data, Chunk& chunk) {
         __m256 mask = _mm256_set1_ps(-0.0f);
         size_t i;
-        for (i = chunk.lo + VEC_REG_CAP; i <= chunk.hi; i += VEC_REG_CAP) {
-            __m256 vec = _mm256_loadu_ps(data + i - VEC_REG_CAP);
+        for (i = chunk.lo + Conf::VEC_REG_CAP; i <= chunk.hi; i += Conf::VEC_REG_CAP) {
+            __m256 vec = _mm256_loadu_ps(data + i - Conf::VEC_REG_CAP);
             vec = _mm256_andnot_ps(mask, vec);
-            _mm256_storeu_ps(data + i - VEC_REG_CAP, vec);
+            _mm256_storeu_ps(data + i - Conf::VEC_REG_CAP, vec);
         }
-        // do the rest -> max VEC_REG_CAP - 1 elements
-        for (i = i - VEC_REG_CAP; i < chunk.hi; i++) {
+        // do the rest -> max Conf::VEC_REG_CAP - 1 elements
+        for (i = i - Conf::VEC_REG_CAP; i < chunk.hi; i++) {
             data[i] = fabs(data[i]);
         }
 
     }
 
+    /* ----------------- FACTORY FUNCTION -------------------- */
+
+    Calc* calc_builder(int mode) {
+        switch (mode) {
+        case 1:
+            omp_set_num_threads(1);
+            return new SeqCalc();
+        case 2:
+            omp_set_num_threads(Conf::NUM_THREADS);
+            return new SeqCalc();
+        case 4:
+            omp_set_num_threads(1);
+            return new VecCalc();
+        case 8:
+            omp_set_num_threads(Conf::NUM_THREADS);
+            return new VecCalc();
+        case 16:
+            return new GpuCalc();
+        default:
+            return nullptr;
+        }
+    }
+
+    /* ----------------- RESULTS OUTPUTS -------------------- */
 
     std::string calc_data_json_dump(const CalcData& calc_data) {
         std::string json = "{\n";

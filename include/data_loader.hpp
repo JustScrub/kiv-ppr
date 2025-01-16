@@ -4,7 +4,6 @@
 #include <string>
 #include <fstream>
 #include <vector>
-#include "comp_conf.hpp"
 
 struct patient_data {
     std::vector<float> X, Y, Z;

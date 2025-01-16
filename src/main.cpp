@@ -1,4 +1,4 @@
-#include "comp_conf.hpp"
+#include "conf_loader.hpp"
 #include "data_loader.hpp"
 #include "calcs.hpp"
 #include <chrono>
@@ -35,8 +35,12 @@ int main(int argc, char *argv[]) {
 
 
     if(argc <3 ){
-        std::cerr << "Usage: " << argv[0] << " <mode> <filename> ..." << std::endl;
-        std::cerr << "mode: 0 - sequential, 1 - vectorized" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <config_path> <filename> ..." << std::endl;
+        return 1;
+    }
+
+    if(Conf::load_conf(argv[1]) != 0){
+        std::cerr << "Failed to load config file: " << argv[1] << std::endl;
         return 1;
     }
 
@@ -80,12 +84,12 @@ int main(int argc, char *argv[]) {
         std::string dim_names[] = {"x", "y", "z"};
 
         for(size_t dim = 0; dim <3; dim++){
-            size_t n_step = data[dim].size()/SIZE_INCR_STEPS + 1U;
+            size_t n_step = data[dim].size()/Conf::SIZE_INCR_STEPS + 1U;
 
-            for(size_t step = 1; step <= SIZE_INCR_STEPS; step++){
+            for(size_t step = 1; step <= Conf::SIZE_INCR_STEPS; step++){
                 size_t n = std::min(data[dim].size(), n_step*step);
 
-                t = calc->calc_time(data[dim].data(), n, NUM_REPS, &cv, &mad);
+                t = calc->calc_time(data[dim].data(), n, Conf::NUM_REPS, &cv, &mad);
 
                 std::get<0>((calc_data[key_name])[dim]).push_back(n);
                 std::get<1>((calc_data[key_name])[dim]).push_back(t);
