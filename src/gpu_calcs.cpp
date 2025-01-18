@@ -36,7 +36,8 @@ namespace calcs {
 		// Create buffers
 		cl::Buffer bufferA(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * elements, A.data());
 		cl::Buffer bufferB(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * elements, B.data());
-		cl::Buffer bufferC(context, CL_MEM_WRITE_ONLY, sizeof(float) * elements);
+		cl::Buffer bufferC(context, CL_MEM_READ_WRITE, sizeof(float) * elements);
+		cl::Buffer bufferD(context, CL_MEM_WRITE_ONLY, sizeof(float) * elements);
 
 		// Create program and kernel
 		cl::Program program(context, kernelSource);
@@ -51,10 +52,17 @@ namespace calcs {
 		// Execute kernel
 		cl::NDRange global(elements);
 		queue.enqueueNDRangeKernel(kernel, cl::NullRange, global, cl::NullRange);
+
+		// Set kernel arguments
+		kernel.setArg(0, bufferA);
+		kernel.setArg(1, bufferC);
+		kernel.setArg(2, bufferD);
+		queue.enqueueNDRangeKernel(kernel, cl::NullRange, global, cl::NullRange);
+
 		queue.finish();
 
 		// Read results
-		queue.enqueueReadBuffer(bufferC, CL_TRUE, 0, sizeof(float) * elements, C.data());
+		queue.enqueueReadBuffer(bufferD, CL_TRUE, 0, sizeof(float) * elements, C.data());
 
 		// Print results
 		for (int i = 0; i < 10; ++i) {
