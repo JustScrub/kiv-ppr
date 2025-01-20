@@ -8,6 +8,7 @@
 #include <tuple>
 #include <array>
 #include <sstream>
+#include <algorithm>
 #include <CL/cl.hpp>
 #undef min
 #undef max
@@ -81,7 +82,8 @@ namespace calcs {
         cl::Kernel sort_ker;
         cl::Kernel varmed;
         cl::Kernel med_mean;
-        cl::Kernel final_calc;
+        cl::Kernel cv_calc;
+		cl::Kernel reverse;
     };
 
     /* 

@@ -1,7 +1,6 @@
 #include "calcs.hpp"
 #include "conf_loader.hpp"
 #include <chrono>
-#include <algorithm>
 #include <omp.h>
 #include <immintrin.h>
 #include <math.h>

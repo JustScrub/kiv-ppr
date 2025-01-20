@@ -17,18 +17,18 @@ __kernel void vector_mul(__global const float* A, __global const float* B, __glo
 
 )";
 
-void sorting_driver_code(cl::CommandQueue &q, cl::Kernel &k, size_t n, size_t work_group_size, size_t work_group_n) {
-	unsigned int stage, passOfStage, numStages, temp;
-    stage = passOfStage = numStages = 0;
-    for(size_t temp = n; temp > 1; temp /= 2)
-        ++numStages;
-	size_t global_size = n/2;
+void sorting_driver_code(cl::CommandQueue &q, cl::Kernel &k, size_t n, size_t work_group_size) {
+	unsigned int stage, substage, n_stages;
+    stage = substage = n_stages = 0;
+    for(size_t tmp = n; tmp > 1; tmp /= 2)
+        ++n_stages;
+	size_t global_size = ((n / 2 + work_group_size - 1) / work_group_size) * work_group_size;
 	// assuming input arg already set!
 
-	for (stage = 0; stage < numStages; ++stage) {
+	for (stage = 0; stage < n_stages; ++stage) {
 		k.setArg(1, stage);
-		for (passOfStage = 0; passOfStage < stage + 1; ++passOfStage) {
-			k.setArg(2, passOfStage);
+		for (substage = 0; substage < stage + 1; ++substage) {
+			k.setArg(2, substage);
 			q.enqueueNDRangeKernel(k, cl::NullRange, cl::NDRange(global_size), cl::NDRange(work_group_size));
 		}
 	}
@@ -67,19 +67,29 @@ namespace calcs {
 
 		this-> sum_reduce = cl::Kernel(program, "sum_reduce");
 		this->   sort_ker = cl::Kernel(program, "sort");
-		this->     varmed = cl::Kernel(program, "varmed");
 		this->   med_mean = cl::Kernel(program, "get_med_mean");
-		this-> final_calc = cl::Kernel(program, "final");
+		this->     varmed = cl::Kernel(program, "varmed");
+		this->    reverse = cl::Kernel(program, "reverse");
+		this->    cv_calc = cl::Kernel(program, "calc_cv");
 	}
 
 	void GpuCalc::calc(float* const data, size_t n, float* cv, float* mad) {
+		cl_int err;
+		// copy data -- need to be padded to (at least) a power of 2
+		size_t n_pow_padded = 1;
+		while (n_pow_padded < n) n_pow_padded *= 2;
+		std::vector<float> padded_data(data, data+n);
 
 		// determine number of work groups -- for partial sums
-		size_t work_group_size, tmp, work_group_n;
+		size_t work_group_size, tmp, work_group_n, global_size;
 		sum_reduce.getWorkGroupInfo(device, CL_KERNEL_WORK_GROUP_SIZE, &work_group_size);
 		varmed.getWorkGroupInfo(device, CL_KERNEL_WORK_GROUP_SIZE, &tmp);
 		work_group_size = tmp < work_group_size ? tmp : work_group_size;
 		work_group_n = n / work_group_size + (n % work_group_size != 0);
+		global_size = work_group_n * work_group_size;
+
+		//actually pad it so work items over the size of n don't segfault AND there are at least power of 2 elements
+		padded_data.resize(std::max(n_pow_padded,global_size), std::numeric_limits<float>::max());
 
 		// prep buffers
 		/*
@@ -91,7 +101,7 @@ namespace calcs {
 		4. The temporary array used in the final kernel is stored in local memory (size n/2)
 		5. The med_mean_buffer is stored in global memory (size 2)
 		 */
-		cl::Buffer input_buff(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n, data);
+		cl::Buffer input_buff(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(float) * n_pow_padded, padded_data.data());
 		cl::Buffer partial_sums(context, CL_MEM_READ_WRITE, sizeof(float) * work_group_n);
 		cl::Buffer med_mean_buffer(context, CL_MEM_READ_WRITE, sizeof(float) * 2);
 
@@ -114,26 +124,43 @@ namespace calcs {
 		varmed.setArg(2, cl::Local(sizeof(float) * work_group_size));
 		varmed.setArg(3, med_mean_buffer);
 
-		final_calc.setArg(0, input_buff);
-		final_calc.setArg(1, n);
-		final_calc.setArg(2, cl::Local(sizeof(float) * n/2)); // tmp memory for merging
-		final_calc.setArg(3, partial_sums);
-		final_calc.setArg(4, work_group_n); // lenght of partial sums
-		final_calc.setArg(5, med_mean_buffer); // input for mean, output for CV and MAD
+		cv_calc.setArg(0, partial_sums);
+		cv_calc.setArg(1, work_group_n);
+		cv_calc.setArg(2, med_mean_buffer);
+		cv_calc.setArg(3, n);
+
+		reverse.setArg(0, input_buff);
+		reverse.setArg(1, n / 2); // only reverse the first half
 
 		float* output = new float[2];
 		// execute kernels
 		cl::CommandQueue queue(context, device);
-		// sum + sort -> med + mean -> variation + x=abs(x-median) -> sort + cv + mad
-		queue.enqueueNDRangeKernel(sum_reduce, cl::NullRange, cl::NDRange(n), cl::NDRange(work_group_size));
-		sorting_driver_code(queue, sort_ker, n, work_group_size, work_group_n);
-		queue.enqueueNDRangeKernel(med_mean, cl::NullRange, cl::NDRange(1), cl::NullRange); // do this work on device rather than on host to avoid moving partial sums
-		queue.enqueueNDRangeKernel(varmed, cl::NullRange, cl::NDRange(n), cl::NDRange(work_group_size));
+		// sum + sort -> med + mean -> variation + x=abs(x-median) -> sum partial variations (second med_mean) -> sort transformed -> cv, mad
+		err = queue.enqueueNDRangeKernel(sum_reduce, cl::NullRange, cl::NDRange(global_size), cl::NDRange(work_group_size));
+		sorting_driver_code(queue, sort_ker, n_pow_padded, work_group_size);
+		err = queue.enqueueNDRangeKernel(med_mean, cl::NullRange, cl::NDRange(1), cl::NullRange); // do this work on device rather than on host to avoid moving partial sums
+		err = queue.enqueueNDRangeKernel(varmed, cl::NullRange, cl::NDRange(global_size), cl::NDRange(work_group_size));
+		err = queue.enqueueNDRangeKernel(reverse, cl::NullRange, cl::NDRange(n / 4), cl::NullRange);
+		err = queue.enqueueNDRangeKernel(cv_calc, cl::NullRange, cl::NDRange(1), cl::NullRange); // same as before
+		queue.enqueueReadBuffer(med_mean_buffer, CL_TRUE, 0, sizeof(float) * 2, output);
+		queue.enqueueReadBuffer(input_buff, CL_TRUE, 0, sizeof(float) * n, data);
+		
+		//this cannot be done in parallel :(
+		//and calculating in a single work-item is inefficient --> move data to host and calculate there
+        std::inplace_merge(data, data + n / 2, data + n);
+
+		*cv = output[0]; // calculated by cv_calc
+        *mad = n % 2 == 0 ? (data[n / 2] + data[n / 2 - 1]) / 2 : data[n / 2];
+
+		/*
 		queue.enqueueNDRangeKernel(final_calc, cl::NullRange, cl::NDRange(1), cl::NullRange); // same as before
+		queue.finish();
+		std::cout << "final_calc done" << std::endl;
 
 		queue.enqueueReadBuffer(med_mean_buffer, CL_TRUE, 0, sizeof(float) * 2, output);
 		*mad = output[0];
 		*cv  = output[1];
+		*/
 	}
 
 

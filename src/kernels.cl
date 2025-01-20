@@ -51,7 +51,7 @@ __kernel void sort(__global float* input, const uint stage, const uint substage 
      
     uint dir = (global_id >> stage) & 0x1;
      
-    tmp   = dir ? right : tmp;
+    tmp   =       right ;        // only used when dir == 1
     right = dir ? left  : right;
     left  = dir ? tmp   : left;
      
@@ -112,52 +112,23 @@ __kernel void varmed(__global float* input, __global float* partial_sums, __loca
     input[global_id] = fabs(input[global_id] - median);
 }
 
-// final single-threaded work to be done
-// is not done on the host to avoid copying the array back to the host
-// steps: 
-//    1. merge the halves of the input after varmed
-//    2. calculate MAD (median of merged array)
-//    3. calculate CV
-__kernel void final(__global float* input, size_t n, __local float* tmp, 
-                    __global float* partial_sums, size_t partial_n, __global float* med_mean_buffer) {
-    if(get_global_id(0)  == 0){
-        // load first half of the array into local memory to make space
-        // tmp must be in reverse order -- because of varmed kernel
-        int mid = n / 2;
-        for(int i = 0; i < mid; i++){
-            tmp[mid - i - 1] = input[i];
-        }
+__kernel void reverse(__global float* input, size_t n) {
+    int global_id = get_global_id(0);
+    if(global_id >= n / 2) return;
 
-        // merge the two halves
-        int i = 0, j = mid, k = 0;
-        while(i < mid && j < n){
-            if(tmp[i] < input[j]){
-                input[k++] = tmp[i++];
-            } else {
-                input[k++] = input[j++];
-            }
-        }
-        while(i < mid){
-            input[k++] = tmp[i++];
-        }
-        while(j < n){
-            input[k++] = input[j++];
-        }
+    float tmp = input[global_id];
+    input[global_id] = input[n - global_id - 1];
+    input[n - global_id - 1] = tmp;
+}
 
-        // calculate median of the merged array (= MAD)
-        float mad = n % 2 == 0 ? (input[n/2] + input[n/2 - 1]) / 2 : input[n/2];
-        float mean = med_mean_buffer[1];
-
-        // calculate CV
+__kernel void calc_cv(__global float* partial_sums, size_t partial_n, __global float* med_mean_buffer, size_t n) {
+    if(get_global_id(0) == 0) {
         float sum = 0;
-        for(int i = 0; i < partial_n; i++){
+        for(int i = 0; i < partial_n; i++) {
             sum += partial_sums[i];
         }
+        float mean = med_mean_buffer[1];
         float cv = sqrt(sum / n) / mean;
-
-        // store output
-        med_mean_buffer[0] = mad;
-        med_mean_buffer[1] = cv;
-
+        med_mean_buffer[0] = cv;
     }
 }
