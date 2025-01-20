@@ -1,12 +1,16 @@
 #ifndef CALCS_HPP
 #define CALCS_HPP
 
+#include "conf_loader.hpp"
 #include <stddef.h>
 #include <vector>
 #include <unordered_map>
 #include <tuple>
 #include <array>
 #include <sstream>
+#include <CL/cl.hpp>
+#undef min
+#undef max
 
 namespace calcs {
 
@@ -53,6 +57,8 @@ namespace calcs {
     // GPU using OpenCL
     class GpuCalc : public Calc {
     public:
+        GpuCalc();
+
         void calc(float* const data, size_t n, float* cv, float* mad) override;
 
         void sum_chunk(const float* const data, Chunk& chunk, float* const out) override {
@@ -64,6 +70,18 @@ namespace calcs {
         void abs_chunk(float* const data, Chunk& chunk) override {
             // not implemented
         }
+        void test_calc(float* const data, size_t n, float* cv, float* mad);
+
+    private:
+		cl::Platform platform;
+        cl::Device device;
+        cl::Context context;
+        cl::Program program;
+        cl::Kernel sum_reduce;
+        cl::Kernel sort_ker;
+        cl::Kernel varmed;
+        cl::Kernel med_mean;
+        cl::Kernel final_calc;
     };
 
     /* 

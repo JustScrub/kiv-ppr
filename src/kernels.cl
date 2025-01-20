@@ -1,4 +1,15 @@
-__kernel void sum_reduce(__global float* input, __global float* partial_sums, __local float* local_sums, int n) {
+/*
+Memory Reqirements
+------------------
+1. The input array is stored in global memory (size n)
+2. The partial sums are stored in global memory (size same as number of work groups)
+3. The local sums are stored in local memory (size same as number of work items in a work group)
+4. The temporary array used in the final kernel is stored in local memory (size n/2)
+5. The med_mean_buffer is stored in global memory (size 2)
+ */
+
+
+__kernel void sum_reduce(__global float* input, __global float* partial_sums, __local float* local_sums) {
     int global_id = get_global_id(0);
     int local_id = get_local_id(0);
     int group_id = get_group_id(0);
@@ -24,21 +35,21 @@ __kernel void sum_reduce(__global float* input, __global float* partial_sums, __
 }
      
 //The bitonic sort kernel, needs driver code to call it multiple times with different stage and substage values
-__kernel void sort(__global float* input_ptr, const uint stage, const uint substage )      
+__kernel void sort(__global float* input, const uint stage, const uint substage )      
 {    
-    uint gid = get_global_id(0);   
+    uint global_id = get_global_id(0);   
     uint elem_dist = 1 << (stage - substage);   
     uint tmp;
 
-    uint left = (gid & (elem_dist -1)) + (gid >> (stage - substage) ) * 2 * elem_dist;
+    uint left = (global_id & (elem_dist -1)) + (global_id >> (stage - substage) ) * 2 * elem_dist;
     uint right = left + elem_dist;
      
     float left_val, right_val;
     float max, min;
-    left_val  = input_ptr[left];
-    right_val = input_ptr[right];
+    left_val  = input[left];
+    right_val = input[right];
      
-    uint dir = (gid >> stage) & 0x1;
+    uint dir = (global_id >> stage) & 0x1;
      
     tmp   = dir ? right : tmp;
     right = dir ? left  : right;
@@ -47,13 +58,13 @@ __kernel void sort(__global float* input_ptr, const uint stage, const uint subst
     max = (left_val < right_val) ? right_val : left_val;
     min = (left_val < right_val) ? left_val  : right_val;
      
-    input_ptr[left]  = min; 
-    input_ptr[right] = max;
+    input[left]  = min; 
+    input[right] = max;
 };
 
 // single work item kernel to calculate the median and mean of an array
 // in order to avoid copy of partial_sums to host, we can use a single work item kernel
-__kernel void get_med_mean(__global float* input, __global float* partial_sums, __global float* med_mean_buffer, int partial_n, int n) {
+__kernel void get_med_mean(__global float* input, __global float* partial_sums, __global float* med_mean_buffer, size_t partial_n, size_t n) {
     if(get_global_id(0) == 0) {
         float sum = 0;
         for(int i = 0; i < partial_n; i++) {
@@ -70,7 +81,7 @@ inline float diff_sqr(float a, float b) {
     return (a - b) * (a - b);
 }
 
-__kernel void varmed(__global float* input, __global float* partial_sums, __local float* local_sums, __global float* med_mean_buffer, int n) {
+__kernel void varmed(__global float* input, __global float* partial_sums, __local float* local_sums, __global float* med_mean_buffer) {
     int global_id = get_global_id(0);
     int local_id = get_local_id(0);
     int group_id = get_group_id(0);
@@ -107,11 +118,12 @@ __kernel void varmed(__global float* input, __global float* partial_sums, __loca
 //    1. merge the halves of the input after varmed
 //    2. calculate MAD (median of merged array)
 //    3. calculate CV
-__kernel void final(__global float* input, int n, int mid, __local float* tmp, 
-                    __global float* partial_sums, int partial_n, __global float* med_mean_buffer) {
+__kernel void final(__global float* input, size_t n, __local float* tmp, 
+                    __global float* partial_sums, size_t partial_n, __global float* med_mean_buffer) {
     if(get_global_id(0)  == 0){
         // load first half of the array into local memory to make space
         // tmp must be in reverse order -- because of varmed kernel
+        int mid = n / 2;
         for(int i = 0; i < mid; i++){
             tmp[mid - i - 1] = input[i];
         }
@@ -134,13 +146,14 @@ __kernel void final(__global float* input, int n, int mid, __local float* tmp,
 
         // calculate median of the merged array (= MAD)
         float mad = n % 2 == 0 ? (input[n/2] + input[n/2 - 1]) / 2 : input[n/2];
+        float mean = med_mean_buffer[1];
 
         // calculate CV
         float sum = 0;
         for(int i = 0; i < partial_n; i++){
             sum += partial_sums[i];
         }
-        float cv = sqrt(sum / n) / mad;
+        float cv = sqrt(sum / n) / mean;
 
         // store output
         med_mean_buffer[0] = mad;

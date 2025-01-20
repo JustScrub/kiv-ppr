@@ -1,6 +1,7 @@
 data
 out
 out_*.json
+myconf.conf
 
 # Visual Studio Code, Visual Studio
 .vscode

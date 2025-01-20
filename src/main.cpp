@@ -9,10 +9,11 @@
 
 
 int main(int argc, char *argv[]) {
-
-    calcs::Calc *tcalc = new calcs::GpuCalc();
-    tcalc->calc(nullptr, 0, nullptr, nullptr);
+    /*
+    calcs::GpuCalc *tcalc = new calcs::GpuCalc();
+    tcalc->test_calc(nullptr, 0, nullptr, nullptr);
     exit(0);
+	*/
    /*
     std::vector<size_t> x_values = {1, 200, 3000, 40000, 500000000};
     std::vector<float> line1 = {-3.234, -2.345, -1.456, -0.567, 0.321};

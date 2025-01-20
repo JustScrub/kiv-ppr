@@ -6,8 +6,10 @@ unsigned Conf::NUM_REPS = 10;
 size_t Conf::CHUNK_CAPACITY = 1024/sizeof(float);
 unsigned Conf::MODES = 31;
 int Conf::NUM_THREADS = -1;
+std::string Conf::plots_dir = "plots";
+std::string Conf::kernels_file = "kernels.cl";
 
-size_t Conf::VEC_REG_CAP = 8;
+const size_t Conf::VEC_REG_CAP = 8;
 std::string Conf::mode_names[] = {"seq_ser", "seq_par", "vec_ser", "vec_par", "GPU"};
 
 int Conf::load_conf(const std::string& conf_path){
@@ -34,6 +36,10 @@ int Conf::load_conf(const std::string& conf_path){
                 Conf::MODES = std::stoul(value);
             } else if(key == "NUM_THREADS"){
                 Conf::NUM_THREADS = std::stoi(value);
+            } else if(key == "PLOTS_OUTPUT"){
+                Conf::plots_dir = value;
+            } else if(key == "CL_KERNELS"){
+                Conf::kernels_file = value;
             }
         }
         if(Conf::NUM_THREADS == -1) {

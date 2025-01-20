@@ -15,8 +15,9 @@ namespace Conf {
     extern unsigned MODES;
     extern int NUM_THREADS;
     extern std::string plots_dir;
+    extern std::string kernels_file;
 
-    extern size_t VEC_REG_CAP;
+    extern const size_t VEC_REG_CAP;
     extern std::string mode_names[];
 
     int load_conf(const std::string& conf_path);
