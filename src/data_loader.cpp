@@ -15,7 +15,7 @@ data_loader::~data_loader() {
 //loaded csv includes date as string, x, y, z -> only x, y, z are loaded (float)
 
 int data_loader::load_data(patient_data& data) {
-    return load_data(data, -1);
+    return load_data(data, (size_t)(-1));
 }
 
 int data_loader::load_data(patient_data& data, size_t chunk_size) {
@@ -32,15 +32,15 @@ int data_loader::load_data(patient_data& data, size_t chunk_size) {
         cline = line.c_str();
         while(*cline != ',') cline++;
         cline++;
-        data.X.push_back(atof(cline));
+        data.X.push_back((float)atof(cline));
 
         while(*cline != ',') cline++;
         cline++;
-        data.Y.push_back(atof(cline));
+        data.Y.push_back((float)atof(cline));
 
         while(*cline != ',') cline++;
         cline++;
-        data.Z.push_back(atof(cline));
+        data.Z.push_back((float)atof(cline));
 
         if(chunk_size > 0 && data.X.size() >= chunk_size) {
             break;

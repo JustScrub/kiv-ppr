@@ -10,8 +10,8 @@
 
 namespace calcs {
 
-    void Calc::calc(float* const data, size_t n, float* cv, float* mad) {
-
+    void OMPCalc::calc(std::vector<float> &data_vector, size_t n, float* cv, float* mad) {
+		float* data = data_vector.data();
         // n is the number of elements in the data array
         // CHUNK_SIZE is the size of the cache in bytes
         size_t n_chunks = (n / Conf::CHUNK_CAPACITY) + (size_t)(n % Conf::CHUNK_CAPACITY != 0);
@@ -59,12 +59,12 @@ namespace calcs {
         delete[] sums;
     }
 
-    void Calc::reduce_merge_chunks(float* const data, Chunk* chunks, size_t n_chunks) {
+    void OMPCalc::reduce_merge_chunks(float* const data, Chunk* chunks, size_t n_chunks) {
         Chunk* _chunks = new Chunk[n_chunks];
         std::copy(chunks, chunks + n_chunks, _chunks);
 
         int start = 0, incr = 1;
-        int to_merge = n_chunks;
+        size_t to_merge = n_chunks;
         while (to_merge > 1) {
 
             // if there are odd number of blocks to merge,
@@ -104,7 +104,7 @@ namespace calcs {
     }
 
     /* After use, data is invalidated (it is used as internal buffer) */
-    float Calc::reduce_sum(float* data, size_t n) {
+    float OMPCalc::reduce_sum(float* data, size_t n) {
         float sum = 0;
 
         size_t n_chunks = (n / Conf::CHUNK_CAPACITY) + (size_t)(n % Conf::CHUNK_CAPACITY != 0);
@@ -132,23 +132,23 @@ namespace calcs {
 
     }
 
-    void Calc::sort_chunk(float* const data, Chunk& chunk) {
+    void OMPCalc::sort_chunk(float* const data, Chunk& chunk) {
         std::sort(data + chunk.lo, data + chunk.hi);
     }
 
-    float Calc::calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad) {
-        float time = 0;
-        float* _data = new float[n];
+    // median time of reps runs
+    float Calc::calc_time(std::vector<float> &data_vector, size_t n, unsigned reps, float* cv, float* mad) {
+		std::vector<float> times;
         for (unsigned i = 0; i < reps; i++) {
-            std::copy(data, data + n, _data);
+			std::vector<float> _data = data_vector;
             auto start = std::chrono::high_resolution_clock::now();
             calc(_data, n, cv, mad);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<float> diff = end - start;
-            time += diff.count();
+			times.push_back(diff.count());
         }
-        delete[] _data;
-        return time / reps;
+		std::sort(times.begin(), times.end());
+		return times.size() % 2 == 0 ? (times[times.size() / 2] + times[times.size() / 2 - 1]) / 2 : times[times.size() / 2];
     }
 
 
@@ -260,7 +260,7 @@ namespace calcs {
             omp_set_num_threads(Conf::NUM_THREADS);
             return new VecCalc();
         case 16:
-            return new GpuCalc();
+            return new OCLCalc();
         default:
             return nullptr;
         }
@@ -416,8 +416,8 @@ namespace calcs {
                 std::string fname = out_file_prefix + "_" + std::string(1, "XYZ"[dim]) + "_";
                 const std::vector<size_t> &x_values = std::get<0>(calc_data.at(mode_name)[dim]);
                 // average time
-                (std::ofstream(fname + "avgtime.svg") << plot_line_data_svg(
-                        "Average time", 
+                (std::ofstream(fname + "medtime.svg") << plot_line_data_svg(
+                        "Median time", 
                         x_values, 
                         avgtime_lines)
                 ).close();

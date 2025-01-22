@@ -19,28 +19,30 @@ namespace calcs {
         size_t lo, hi;  // size: so that the whole chunk fits into cache
     };
 
-    // set thread num via OMP_NUM_THREADS environment variable
     class Calc {
+    public:
+        virtual void calc(std::vector<float> &data_vector, size_t n, float *cv, float *mad) = 0;
+        virtual float calc_time(std::vector<float> &data_vector, size_t n, unsigned reps, float* cv, float* mad);
+
+		virtual ~Calc() = default;
+    };
+
+    class OMPCalc : public Calc {
     public:
         virtual void sum_chunk(const float* const data, Chunk& chunk, float* const out) = 0;
         virtual void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) = 0;
-        virtual void abs_chunk(float* const data, Chunk& chunk) = 0; 
-        virtual void sort_chunk(float* const data, Chunk& chunk);
-        /*
-         * Merges sorted chunks of data into a single sorted array.
-         */
+        virtual void abs_chunk(float* const data, Chunk& chunk) = 0;
+
         void reduce_merge_chunks(float* const data, Chunk* chunks, size_t n_chunks);
-
         float reduce_sum(float* data, size_t n);
+        void sort_chunk(float* const data, Chunk& chunk);
 
-        virtual void calc(float* const data, size_t n, float* cv, float* mad);
-
-        float calc_time(float* const data, size_t n, unsigned reps, float* cv, float* mad);
+        virtual void calc(std::vector<float> &data_vector, size_t n, float* cv, float* mad) override;
 
     };
 
     // sequential instructions
-    class SeqCalc : public Calc {
+    class SeqCalc : public OMPCalc {
     public:
         void sum_chunk(const float* const data, Chunk& chunk, float* const out) override;
         void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) override;
@@ -48,30 +50,31 @@ namespace calcs {
     };
 
     // vectorized instructions
-    class VecCalc : public Calc {
+    class VecCalc : public OMPCalc {
     public:
         void sum_chunk(const float* const data, Chunk& chunk, float* const out) override;
         void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) override;
         void abs_chunk(float* const data, Chunk& chunk) override;
     };
 
-    // GPU using OpenCL
-    class GpuCalc : public Calc {
+    // OpenCL implementation
+    class OCLCalc : public Calc {
     public:
-        GpuCalc();
+        OCLCalc();
 
-        void calc(float* const data, size_t n, float* cv, float* mad) override;
+		static void prepare_data(std::vector<float>& data);
 
-        void sum_chunk(const float* const data, Chunk& chunk, float* const out) override {
-            // not implemented
-        }
-        void varmed_chunk(float* const data, Chunk& chunk, float med, float mean, float* const out) override {
-            // not implemented
-        }
-        void abs_chunk(float* const data, Chunk& chunk) override {
-            // not implemented
-        }
-        void test_calc(float* const data, size_t n, float* cv, float* mad);
+        void calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad) override;
+		float calc_time(std::vector<float>& data_vec, size_t n, unsigned reps, float* cv, float* mad);
+        //void test_calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad);
+
+		void sort(cl::CommandQueue &q, size_t n, size_t work_group_size);
+        /**
+		* Reduces the partial sums in the buffer to a number of partial sums less than or equal to work_group_size.
+		* The output is stored in the partial_sums buffer and must summed again to get the final result.
+		* Returns the number of partial sums after the reduction.
+        */
+		size_t reduce_sum(cl::CommandQueue &q, cl::Buffer &b, size_t n, size_t work_group_size);
 
     private:
 		cl::Platform platform;

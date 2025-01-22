@@ -3,6 +3,7 @@
 #include "calcs.hpp"
 #include <chrono>
 #include <iostream>
+#include <filesystem>
 #include <errno.h>
 #include <omp.h>
 #include <tuple>
@@ -10,7 +11,7 @@
 
 int main(int argc, char *argv[]) {
     /*
-    calcs::GpuCalc *tcalc = new calcs::GpuCalc();
+    calcs::OCLCalc *tcalc = new calcs::OCLCalc();
     tcalc->test_calc(nullptr, 0, nullptr, nullptr);
     exit(0);
 	*/
@@ -83,19 +84,19 @@ int main(int argc, char *argv[]) {
                 for(size_t step = 1; step <= Conf::SIZE_INCR_STEPS; step++){
                     size_t n = std::min(data[dim].size(), n_step*step);
 
-                    t = calc->calc_time(data[dim].data(), n, Conf::NUM_REPS, &cv, &mad);
+                    t = calc->calc_time(data[dim], n, Conf::NUM_REPS, &cv, &mad);
 
                     std::get<0>((calc_data[mode_name])[dim]).push_back(n);
                     std::get<1>((calc_data[mode_name])[dim]).push_back(t);
                     std::get<2>((calc_data[mode_name])[dim]).push_back(cv);
                     std::get<3>((calc_data[mode_name])[dim]).push_back(mad);
-                    std::cout << "    " << dim_names[dim] << ": length " << n << "; avg time " << t << " s" << std::endl;
+                    std::cout << "    " << dim_names[dim] << ": length " << n << "; med time " << t << " s" << std::endl;
                 } // data length steps
             } // dimensions
             delete calc;
         } // modes
 
-        calcs::plot_line_data_svg("plots/" + std::to_string(i-1), calc_data);
+        calcs::plot_line_data_svg("plots/" + std::filesystem::path(argv[i]).stem().string(), calc_data);
         std::cout << calcs::calc_data_json_dump(calc_data, argv[i]) << std::endl;
 
         data.X.clear();

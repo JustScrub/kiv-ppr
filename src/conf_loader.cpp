@@ -30,7 +30,7 @@ int Conf::load_conf(const std::string& conf_path){
                 Conf::CHUNK_CAPACITY = Conf::CHUNK_SIZE / sizeof(float);
             } else if(key == "DATA_LEN_STEPS"){
                 Conf::SIZE_INCR_STEPS = std::stoul(value);
-            } else if(key == "AVG_REPS"){
+            } else if(key == "MED_REPS"){
                 Conf::NUM_REPS = std::stoul(value);
             } else if(key == "MODES"){
                 Conf::MODES = std::stoul(value);
@@ -42,7 +42,7 @@ int Conf::load_conf(const std::string& conf_path){
                 Conf::kernels_file = value;
             }
         }
-        if(Conf::NUM_THREADS == -1) {
+        if(Conf::NUM_THREADS <= 0) {
             Conf::NUM_THREADS = omp_get_max_threads();
         }
         return 0;

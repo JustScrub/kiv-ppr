@@ -14,6 +14,7 @@ include_directories("include")
 
 # project sources
 file(GLOB prj_sources src/*.cpp)
+configure_file("src/kernels.cl" "kernels.cl" COPYONLY)
 
 # Add sources to the project
 add_executable(

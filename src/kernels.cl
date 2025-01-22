@@ -8,15 +8,14 @@ Memory Reqirements
 5. The med_mean_buffer is stored in global memory (size 2)
  */
 
-
-__kernel void sum_reduce(__global float* input, __global float* partial_sums, __local float* local_sums) {
+__kernel void sum_reduce(__global float* input, size_t n, __global float* partial_sums, __local float* local_sums) {
     int global_id = get_global_id(0);
     int local_id = get_local_id(0);
     int group_id = get_group_id(0);
     int local_size = get_local_size(0);
 
     // Load data into local memory
-    local_sums[local_id] = input[global_id];
+    local_sums[local_id] = global_id < n ? input[global_id] : 0.0f;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Perform reduction in local memory
@@ -81,24 +80,24 @@ inline float diff_sqr(float a, float b) {
     return (a - b) * (a - b);
 }
 
-__kernel void varmed(__global float* input, __global float* partial_sums, __local float* local_sums, __global float* med_mean_buffer) {
+__kernel void varmed(__global float* input, size_t n, __global float* partial_sums, __local float* local_sums, __global float* med_mean_buffer) {
     int global_id = get_global_id(0);
     int local_id = get_local_id(0);
     int group_id = get_group_id(0);
     int local_size = get_local_size(0);
 
-    float mean = med_mean_buffer[1];
     float median = med_mean_buffer[0];
+    float mean = med_mean_buffer[1];
 
-    // Load data into local memory
-    local_sums[local_id] = diff_sqr(input[global_id], mean);
+    // Load differences into local memory
+    local_sums[local_id] = global_id < n ? diff_sqr(input[global_id], mean) : 0.0f;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Perform reduction in local memory
     for (int stride = 1; stride < local_size; stride *= 2) {
         int index = 2 * stride * local_id;
         if (index < local_size) {
-            local_sums[index] += diff_sqr(local_sums[index + stride], mean);
+            local_sums[index] += local_sums[index + stride];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
@@ -109,7 +108,9 @@ __kernel void varmed(__global float* input, __global float* partial_sums, __loca
     }
 
     // subtract median from input data and absolute value
-    input[global_id] = fabs(input[global_id] - median);
+    if(global_id < n){
+        input[global_id] = fabs(input[global_id] - median);
+    }
 }
 
 __kernel void reverse(__global float* input, size_t n) {
