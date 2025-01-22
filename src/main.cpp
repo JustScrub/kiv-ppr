@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
             delete calc;
         } // modes
 
-        calcs::plot_line_data_svg("plots/" + std::filesystem::path(argv[i]).stem().string(), calc_data);
+        calcs::plot_line_data_svg(Conf::plots_dir + std::filesystem::path(argv[i]).stem().string(), calc_data);
         std::cout << calcs::calc_data_json_dump(calc_data, argv[i]) << std::endl;
 
         data.X.clear();
