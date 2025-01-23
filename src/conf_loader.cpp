@@ -16,7 +16,7 @@ int Conf::load_conf(const std::string& conf_path){
         std::ifstream conf_file(conf_path);
         if(!conf_file.is_open()){
             std::cerr << "Failed to open config file: " << conf_path << std::endl;
-            return 0;
+            exit(1);
         }
 
         std::string line;
