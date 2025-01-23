@@ -62,13 +62,13 @@ namespace calcs {
     public:
         OCLCalc();
 
-		static void prepare_data(std::vector<float>& data);
+		virtual void prepare_data(std::vector<float>& data);
 
         void calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad) override;
 		float calc_time(std::vector<float>& data_vec, size_t n, unsigned reps, float* cv, float* mad);
         //void test_calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad);
 
-		void sort(cl::CommandQueue &q, size_t n, size_t work_group_size);
+		virtual void sort(cl::CommandQueue &q, size_t n, size_t work_group_size);
         /**
 		* Reduces the partial sums in the buffer to a number of partial sums less than or equal to work_group_size.
 		* The output is stored in the partial_sums buffer and must summed again to get the final result.
@@ -89,6 +89,12 @@ namespace calcs {
 		cl::Kernel reverse;
     };
 
+	class OCLCalcCpuSort : public OCLCalc {
+	public:
+		void sort(cl::CommandQueue& q, size_t n, size_t work_group_size) override;
+		void prepare_data(std::vector<float>& data) override;
+	};
+
     /* 
      * Factory function for creating Calc objects.
      * mode: 
@@ -97,6 +103,7 @@ namespace calcs {
      * - 4 = vectorized serial,
      * - 8 = vectorized parallel,
      * - 16 = GPU 
+	 * - 32 = GPU with CPU sort
      * returns: pointer to Calc object or nullptr if mode is invalid
      */
     Calc *calc_builder(int mode);

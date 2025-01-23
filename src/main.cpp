@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 
         calcs::CalcData calc_data; // new for each file
 
-        for(int m = 0; m < 5; m++) { //modes
+        for(int m = 0; m < 6; m++) { //modes
             if((calc = calcs::calc_builder( Conf::MODES & (1<<m) )) == nullptr) continue;
             std::string mode_name = Conf::mode_names[m];
 

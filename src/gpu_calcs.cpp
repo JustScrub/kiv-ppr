@@ -73,11 +73,6 @@ namespace calcs {
 	void OCLCalc::calc(std::vector<float> &data_vector, size_t n, float* cv, float* mad) {
 		cl_int err;
 
-		if (!is_pow2(data_vector.size())) {
-			std::cerr << "OpenCL: Data array length must be a power of 2" << std::endl;
-			std::cerr << "(actual data must be padded using calcs::OCLCalc::prepare_data)" << std::endl;
-			exit(1);
-		}
 		float* data = data_vector.data();
 
 		// determine number of work groups -- for partial sums
@@ -134,13 +129,13 @@ namespace calcs {
 		// execute kernels
 		cl::CommandQueue queue(context, device);
 
-		// sum + sort 
+		// sort + sum 
+		sort(queue, data_vector.size(), work_group_size);
 		sum_reduce.setArg(0, input_buff);
 		sum_reduce.setArg(1, n);
 		sum_reduce.setArg(2, partial_sums);
 		err = queue.enqueueNDRangeKernel(sum_reduce, cl::NullRange, cl::NDRange(global_size), cl::NDRange(work_group_size));
 		partial_n = reduce_sum(queue, partial_sums, work_group_n, work_group_size);
-		sort(queue, data_vector.size(), work_group_size);
 
 		// calculate median and mean
 		med_mean.setArg(3, partial_n);
@@ -168,6 +163,13 @@ namespace calcs {
 	}
 
 	void OCLCalc::sort(cl::CommandQueue &q, size_t n, size_t work_group_size) {
+
+		if (!is_pow2(n)) {
+			std::cerr << "GPU sort implementation: Data array length must be a power of 2" << std::endl;
+			std::cerr << "(actual data must be padded using calcs::OCLCalc::prepare_data)" << std::endl;
+			exit(1);
+		}
+
 		unsigned int stage, substage, n_stages;
 		stage = substage = n_stages = 0;
 		for(size_t tmp = n; tmp > 1; tmp /= 2)
@@ -232,12 +234,12 @@ namespace calcs {
 	float OCLCalc::calc_time(std::vector<float>& data_vector, size_t n, unsigned reps, float* cv, float* mad) {
 		std::vector<float> times;
 		for (unsigned i = 0; i < reps; i++) {
-			// gotta do some mangling first: pad the data to a power of 2
 			std::vector<float> _data;
 			std::copy_n(data_vector.begin(), n, std::back_inserter(_data));
-			prepare_data(_data);
-			// rest is same
+
+			// gotta do some mangling first: pad the data to a power of 2 or sort in case of subclass
 			auto start = std::chrono::high_resolution_clock::now();
+			prepare_data(_data); // count that in
 			calc(_data, n, cv, mad);
 			auto end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float> diff = end - start;
@@ -245,6 +247,15 @@ namespace calcs {
 		}
 		std::sort(times.begin(), times.end());
 		return times.size() % 2 == 0 ? (times[times.size() / 2] + times[times.size() / 2 - 1]) / 2 : times[times.size() / 2];
+	}
+
+	void OCLCalcCpuSort::prepare_data(std::vector<float>& data) {
+		// sort the data
+		std::sort(data.begin(), data.end());
+	}
+
+	void OCLCalcCpuSort::sort(cl::CommandQueue& q, size_t n, size_t work_group_size) {
+		// do nothing -- data is already sorted
 	}
 
 /*

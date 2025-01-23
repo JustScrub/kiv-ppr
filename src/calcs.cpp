@@ -261,6 +261,8 @@ namespace calcs {
             return new VecCalc();
         case 16:
             return new OCLCalc();
+		case 32:
+			return new OCLCalcCpuSort();
         default:
             return nullptr;
         }
@@ -360,7 +362,7 @@ namespace calcs {
         }
 
         // Set collor pallette
-        std::string colors[] = { "red", "green", "blue", "orange", "purple" };
+        std::string colors[] = { "red", "green", "blue", "orange", "purple", "gold"};
         size_t i = 0;
         // Plot lines
         for (const auto& line : lines) {
@@ -401,7 +403,7 @@ namespace calcs {
                 mad_lines.clear();
                 std::string mode_name;
                 // collect data for each mode and each metric
-                for(int mode = 0; mode < 5; mode++){ 
+                for(int mode = 0; mode < 6; mode++){ 
                     if( (Conf::MODES & (1 << mode)) == 0 ) continue; // skip if mode not enabled
                     mode_name = Conf::mode_names[mode];
                     if(calc_data.find(mode_name) == calc_data.end()) continue; // skip if data not found
