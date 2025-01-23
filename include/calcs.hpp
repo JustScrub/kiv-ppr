@@ -66,9 +66,9 @@ namespace calcs {
 
         void calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad) override;
 		float calc_time(std::vector<float>& data_vec, size_t n, unsigned reps, float* cv, float* mad);
-        //void test_calc(std::vector<float> &data_vec, size_t n, float* cv, float* mad);
 
 		virtual void sort(cl::CommandQueue &q, size_t n, size_t work_group_size);
+
         /**
 		* Reduces the partial sums in the buffer to a number of partial sums less than or equal to work_group_size.
 		* The output is stored in the partial_sums buffer and must summed again to get the final result.
@@ -108,8 +108,7 @@ namespace calcs {
      */
     Calc *calc_builder(int mode);
 
-    // structure for storing calculated data
-
+    // structure for storing calculated data:
     /*
     structure:
         [ mode: { 
@@ -140,12 +139,19 @@ namespace calcs {
     std::string calc_data_json_dump(const CalcData& calc_data, const std::string file_name);
  
     using SvgLine = std::pair<std::string, const std::vector<float>& >; // line name, line data
+
+    /**
+	* Generates an SVG plot of the data with specified title and lines.
+    */
     std::string plot_line_data_svg(
         const std::string title, 
         const std::vector<size_t>& x_values, 
         const std::vector<SvgLine>& lines
         );
 
+	/**
+	* Parses data from CalcData object, generates SVG plots for each mode and metric and saves them to files.
+    */
     void plot_line_data_svg(
         const std::string file_prefix,
         const CalcData& calc_data

@@ -18,11 +18,13 @@ int Conf::load_conf(const std::string& conf_path){
             std::cerr << "Failed to open config file: " << conf_path << std::endl;
             return 0;
         }
+
         std::string line;
         while(std::getline(conf_file, line)){
-            if(line[0] == '#') continue;
+			if (line[0] == '#') continue; // skip comments
             size_t pos = line.find('=');
-            if(pos == std::string::npos) continue;
+			if (pos == std::string::npos) continue; // skip invalid lines
+
             std::string key = line.substr(0, pos);
             std::string value = line.substr(pos+1);
             if(key == "CHUNK_SIZE"){

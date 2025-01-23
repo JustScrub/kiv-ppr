@@ -140,7 +140,7 @@ namespace calcs {
     float Calc::calc_time(std::vector<float> &data_vector, size_t n, unsigned reps, float* cv, float* mad) {
 		std::vector<float> times;
         for (unsigned i = 0; i < reps; i++) {
-			std::vector<float> _data = data_vector;
+			std::vector<float> _data = data_vector; // copy data
             auto start = std::chrono::high_resolution_clock::now();
             calc(_data, n, cv, mad);
             auto end = std::chrono::high_resolution_clock::now();
@@ -179,7 +179,6 @@ namespace calcs {
     }
 
     /* ----------------- VECTOR INSTRUCTION IMPLEMENTATION -------------------- */
-    // by hand, not using OpenMP SIMD directives
 
     void VecCalc::sum_chunk(const float* const data, Chunk& chunk, float* const out) {
         __m256 sum = _mm256_setzero_ps();
@@ -335,7 +334,6 @@ namespace calcs {
         svg << "<line x1=\"" << left_margin << "\" y1=\"" << height - margin << "\" x2=\"" << width - margin << "\" y2=\"" << height - margin << "\" stroke=\"black\"/>\n";
 
         // Draw X-axis labels and grid
-        // skew labels to avoid overlap
         for (size_t i = 0; i < x_values.size(); ++i) {
             float x = left_margin + (i + 1) * (width - margin - left_margin) / (x_values.size() + 1);
             float y = height - margin / 2;
@@ -376,7 +374,6 @@ namespace calcs {
         }
 
         // Draw legend -- text is same color as line
-        // below title, in line
         i = 0;
         float legend_x = width - margin;
         float legend_y = margin;

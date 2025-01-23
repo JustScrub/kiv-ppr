@@ -1,6 +1,8 @@
 #ifndef RANGE_ITER_HPP
 #define RANGE_ITER_HPP
 
+// NOT USED
+
 #include <iterator>
 #include <stdexcept>
 

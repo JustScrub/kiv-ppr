@@ -5,20 +5,6 @@
 #include <vector>
 #include <chrono>
 
-const char* test_kernel = R"(
-__kernel void vector_add(__global const float* A, __global const float* B, __global float* C) {
-    int id = get_global_id(0);
-    C[id] = A[id] + B[id];
-}
-
-__kernel void vector_mul(__global const float* A, __global const float* B, __global float* C) {
-    int id = get_global_id(0);
-    C[id] = A[id] * B[id];
-}
-
-)";
-
-
 namespace calcs {
 
 	OCLCalc::OCLCalc() {
@@ -41,6 +27,11 @@ namespace calcs {
 
 		// prep kernels
 		std::ifstream kfile(Conf::kernels_file);
+		if (!kfile.is_open()) {
+			std::cerr << "OpenCL: Failed to open kernels file" << std::endl;
+			exit(1);
+		}
+
 		std::string kernel_src((std::istreambuf_iterator<char>(kfile)), std::istreambuf_iterator<char>());
 		this->program = cl::Program(this->context, kernel_src, true, &err); // true builds the program
 		kfile.close();
@@ -59,7 +50,6 @@ namespace calcs {
 
 #define get_n_chunks(n, work_group_size) ( ((n)/(work_group_size)) + (((n) % (work_group_size)) != 0) )
 #define get_global_size(n, work_group_size) get_n_chunks(n, work_group_size) * (work_group_size)
-//#define get_global_size(n, work_group_size) ( (( ((n) / (work_group_size)) + (work_group_size) - 1 ) / (work_group_size)) * (work_group_size) )
 #define is_pow2(n) ( ((n) & ((n) - 1)) == 0 )
 
 	void OCLCalc::prepare_data(std::vector<float>& data) {
@@ -174,7 +164,6 @@ namespace calcs {
 		stage = substage = n_stages = 0;
 		for(size_t tmp = n; tmp > 1; tmp /= 2)
 			++n_stages;
-		//size_t global_size = ((n / 2 + work_group_size - 1) / work_group_size) * work_group_size;
 		size_t global_size = get_global_size(n/2, work_group_size);
 		// assuming input arg already set!
 
@@ -194,7 +183,6 @@ namespace calcs {
 		size_t n_chunks = get_n_chunks(partial_n, work_group_size);
 		cl::Buffer tmp_buffer(context, CL_MEM_READ_WRITE, sizeof(float) * n_chunks);
 
-		// reducing the partial sums
 		unsigned step_parity = 0; // even = summing partial_sums to tmp_buffer, odd = summing tmp_buffer to partial_sums
 
 		// as opposed to OMP implementation, this reduction does not reduce into a single value
@@ -254,68 +242,8 @@ namespace calcs {
 		std::sort(data.begin(), data.end());
 	}
 
-	void OCLCalcCpuSort::sort(cl::CommandQueue& q, size_t n, size_t work_group_size) {
+	void OCLCalcCpuSort::sort(cl::CommandQueue&, size_t, size_t) {
 		// do nothing -- data is already sorted
 	}
 
-/*
-	void OCLCalc::test_calc(std::vector<float> &data_vector, size_t n, float* cv, float* mad) {
-		// Initialize data
-		const int elements = 1<<20;
-		std::vector<float> A(elements, 1.0f);
-		std::vector<float> B(elements, 2.0f);
-		std::vector<float> C(elements);
-
-		// Get platforms and devices
-		std::vector<cl::Platform> platforms;
-		cl::Platform::get(&platforms);
-		std::cout << "Number of platforms: " << platforms.size() << std::endl;
-		cl::Platform platform = platforms.front();
-		std::cout << "Platform: " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
-
-		std::vector<cl::Device> devices;
-		platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
-		cl::Device device = devices.front();
-
-		// Create context and command queue
-		cl::Context context(device);
-		cl::CommandQueue queue(context, device);
-
-		// Create buffers
-		cl::Buffer bufferA(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * elements, A.data());
-		cl::Buffer bufferB(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float) * elements, B.data());
-		cl::Buffer bufferC(context, CL_MEM_READ_WRITE, sizeof(float) * elements);
-		cl::Buffer bufferD(context, CL_MEM_WRITE_ONLY, sizeof(float) * elements);
-
-		// Create program and kernel
-		cl::Program program(context, test_kernel);
-		program.build({device});
-		cl::Kernel kernel_vadd(program, "vector_add");
-		cl::Kernel kernel_vmul(program, "vector_mul");
-
-		// Set kernel arguments
-		kernel_vadd.setArg(0, bufferA);
-		kernel_vadd.setArg(1, bufferB);
-		kernel_vadd.setArg(2, bufferC);
-
-		kernel_vmul.setArg(0, bufferB);
-		kernel_vmul.setArg(1, bufferC);
-		kernel_vmul.setArg(2, bufferD);
-
-		// Execute kernels
-		cl::NDRange global(elements);
-		queue.enqueueNDRangeKernel(kernel_vadd, cl::NullRange, global, cl::NullRange);
-		queue.enqueueNDRangeKernel(kernel_vmul, cl::NullRange, global, cl::NullRange);
-		queue.finish();
-
-		// Read results
-		queue.enqueueReadBuffer(bufferD, CL_TRUE, 0, sizeof(float) * elements, C.data()); // read bufferD into C
-
-		// Print results
-		for (int i = 0; i < 10; ++i) {
-			std::cout << C[i] << " ";
-		}
-		std::cout << std::endl;
-	}
-*/
 	} // namespace calcs
