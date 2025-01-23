@@ -21,6 +21,7 @@ namespace Conf {
     extern std::string mode_names[];
 
     int load_conf(const std::string& conf_path);
+    void print_conf();
 }
 
 

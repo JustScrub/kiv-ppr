@@ -50,3 +50,14 @@ int Conf::load_conf(const std::string& conf_path){
         }
         return 0;
     }
+
+void Conf::print_conf() {
+    std::cout << "CHUNK_SIZE=" << Conf::CHUNK_SIZE << std::endl;
+    std::cout << "DATA_LEN_STEPS=" << Conf::SIZE_INCR_STEPS << std::endl;
+    std::cout << "MED_REPS=" << Conf::NUM_REPS << std::endl;
+    std::cout << "MODES=" << Conf::MODES << std::endl;
+    std::cout << "NUM_THREADS=" << Conf::NUM_THREADS << std::endl;
+    std::cout << "PLOTS_OUTPUT=" << Conf::plots_dir << std::endl;
+    std::cout << "CL_KERNELS=" << Conf::kernels_file << std::endl;
+    std::cout << std::endl;
+}

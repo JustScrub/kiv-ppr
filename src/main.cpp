@@ -44,6 +44,8 @@ int main(int argc, char *argv[]) {
         std::cerr << "Failed to load config file: " << argv[1] << std::endl;
         return 1;
     }
+    std::cout << "Configuration: " << std::endl;
+    Conf::print_conf();
 
     calcs::Calc *calc;
 
